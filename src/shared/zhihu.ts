@@ -27,7 +27,7 @@ const optionalText = z
   .transform((value) => value ?? '')
 const itemSchema = z.object({
   ContentID: contentID,
-  ContentType: z.string().min(1),
+  ContentType: z.string().nullish().transform((value) => value?.trim() || 'Unknown'),
   Title: optionalText,
   ContentText: z.string().min(1),
   Url: z.string().url(),

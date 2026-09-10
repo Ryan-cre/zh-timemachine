@@ -102,7 +102,14 @@ export async function runResearch(
           const result = await search(query, period.from, period.to, signal, true, () => {
             r.searches += 1
             saveResearch(r)
-          }, r.input.searchSource ?? 'zhihu')
+          }, r.input.searchSource ?? 'zhihu', async (prompt) => {
+            check()
+            progress(`${period.label} · 正在尝试识别搜索摘要字段`)
+            const reply = await ask(p, prompt, signal, 700)
+            r.tokens += reply.tokens
+            saveResearch(r)
+            return reply.text
+          })
           period.saturated ||= result.saturated
           period.warnings = [
             ...new Set([...(period.warnings ?? []), ...result.warnings]),

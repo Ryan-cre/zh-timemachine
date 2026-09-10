@@ -10,6 +10,7 @@ import type { ModelReply } from '../shared/structured'
 import { parseZhihuResponse, ZhihuAPIError } from '../shared/zhihu'
 import { assertRateReady, rateLimited } from '../shared/rate-limit'
 import { setTimeout as delay } from 'node:timers/promises'
+import { recoverSearchFields } from '../shared/search-recovery'
 
 let searchQueue: Promise<unknown> = Promise.resolve()
 
@@ -21,6 +22,7 @@ export async function search(
   useCache = true,
   onAttempt: () => void = () => {},
   source: 'zhihu' | 'global' = 'zhihu',
+  repair?: (prompt: string) => Promise<string>,
 ): Promise<{
   items: Evidence[]
   saturated: boolean
@@ -86,14 +88,24 @@ export async function search(
       throw new Error('知乎服务返回了非 JSON 响应，请稍后继续分析')
     }
     let data: ReturnType<typeof parseZhihuResponse>
+    let recovered = false
     try {
       data = parseZhihuResponse(raw)
     } catch (error) {
       if (error instanceof ZhihuAPIError && error.code === 30001)
         limited(response.headers.get('retry-after'))
-      throw error
+      if (error instanceof ZhihuAPIError || !repair || signal.aborted) throw error
+      try {
+        const candidate = await recoverSearchFields(raw, repair)
+        if (candidate === raw) throw error
+        data = parseZhihuResponse(candidate)
+        recovered = true
+      } catch {
+        throw error
+      }
     }
     saveRateState(rateId, { ...rate, retryAt: 0, strikes: 0 })
+    if (recovered) data.warnings.push('已由模型辅助匹配摘要字段名，内容直接取自接口原值；来源、ID 和时间未改动。')
     const items = data.items
       .filter(
         (x) =>
