@@ -50,6 +50,9 @@ export interface Period {
   status: 'pending' | 'done'
   saturated: boolean
   warnings?: string[]
+  searchQueries?: string[]
+  completedQueries?: string[]
+  searchComplete?: boolean
 }
 export interface Research {
   id: string

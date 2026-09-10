@@ -80,17 +80,29 @@ try {
   await page.screenshot({ path: join(output, 'home.png') })
   await desktop.evaluate(({ net }) => {
     const original = net.fetch.bind(net)
-    let errorSent = false
+    globalThis.zhihuCalls = 0
+    globalThis.checkpointCalls = []
+    let checkpointFailed = false
     net.fetch = async (input, init) => {
       const url = new URL(typeof input === 'string' ? input : input.url)
       if (url.hostname !== 'developer.zhihu.com') return original(input, init)
-      if (!errorSent) {
-        errorSent = true
+      globalThis.zhihuCalls++
+      if (url.searchParams.get('Query') === '知乎') {
         return new Response(JSON.stringify({ Code: 30001, Data: null }), {
           headers: { 'Content-Type': 'application/json' },
         })
       }
       const range = url.searchParams.get('SortBy')?.match(/\((\d+),(\d+)\)/)
+      if (range && Number(range[1]) < 1700000000) {
+        const query = url.searchParams.get('Query')
+        globalThis.checkpointCalls.push(query)
+        if (query === '断点测试')
+          return Response.json({ Code: 0, Data: { Items: [] } })
+        if (!checkpointFailed) {
+          checkpointFailed = true
+          return Response.json({ Code: 90001, Data: null })
+        }
+      }
       return new Response(
         JSON.stringify({
           Code: 0,
@@ -130,10 +142,6 @@ try {
   const state = await page.evaluate(() => window.desktop.state())
   assert.equal(state.settings.hasZhihuKey, true)
   assert.equal(JSON.stringify(state).includes('test-provider-secret'), false)
-  await assert.rejects(
-    page.evaluate(() => window.desktop.testZhihu()),
-    /Code 30001/,
-  )
   const id = await page.evaluate(
     async (providerId) =>
       window.desktop.start({
@@ -225,6 +233,35 @@ try {
   await page.getByRole('button', { name: '添加供应商' }).click()
   await page.keyboard.press('Escape')
   assert.equal(await page.getByRole('dialog').count(), 0)
+  const checkpointId = await page.evaluate((providerId) => window.desktop.start({
+    question: '断点测试', start: '2023-01-01', end: '2023-12-31',
+    grain: 'year', providerId, maxSearches: 4,
+  }), state.settings.providers[0].id)
+  const waitResearch = async (id) => {
+    for (let attempt = 0; attempt < 150; attempt++) {
+      const r = await page.evaluate(async (id) =>
+        (await window.desktop.state()).researches.find((r) => r.id === id), id)
+      if (r.status !== 'running') return r
+      await new Promise((resolve) => setTimeout(resolve, 100))
+    }
+    throw new Error('Research did not finish')
+  }
+  const interrupted = await waitResearch(checkpointId)
+  assert.equal(interrupted.status, 'failed')
+  assert.deepEqual(interrupted.periods[0].completedQueries, ['断点测试'])
+  assert.equal(interrupted.periods[0].evidence.length, 0)
+  await page.evaluate((id) => window.desktop.resume(id), checkpointId)
+  const resumed = await waitResearch(checkpointId)
+  assert.equal(resumed.status, 'done', resumed.message)
+  assert.equal(resumed.searches, 3)
+  assert.deepEqual(await desktop.evaluate(() => globalThis.checkpointCalls),
+    ['断点测试', 'NiKo Major', 'NiKo Major'])
+  await assert.rejects(page.evaluate(() => window.desktop.testZhihu()), /Code 30001/)
+  const calls = await desktop.evaluate(() => globalThis.zhihuCalls)
+  await assert.rejects(page.evaluate(() => window.desktop.testZhihu()), /本地冷却/)
+  assert.equal(await desktop.evaluate(() => globalThis.zhihuCalls), calls)
+  assert.equal(result.periods[0].searchComplete, true)
+  assert.equal(result.periods[0].completedQueries.length, 1)
   const db = await readFile(join(profile, 'timemachine.db'))
   const wal = await readFile(join(profile, 'timemachine.db-wal')).catch(() =>
     Buffer.alloc(0),
