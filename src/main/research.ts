@@ -2,7 +2,8 @@ import { z } from 'zod'
 import type { Research, Provider } from '../shared/types'
 import { cleanOpinions } from '../shared/logic'
 import { saveResearch } from './store'
-import { search, ask, parseJSON } from './adapters'
+import { search, ask } from './adapters'
+import { structuredRequest, ModelFormatError } from '../shared/structured'
 
 const planSchema = z.object({
   queries: z.array(z.string().min(1).max(120)).min(1).max(3),
@@ -34,28 +35,46 @@ export async function runResearch(
   const check = () => {
     if (signal.aborted) throw new Error('任务已取消')
   }
+  const generate = <T>(
+    schema: z.ZodType<T>,
+    prompt: string,
+    maxTokens: number,
+    stage: string,
+  ) =>
+    structuredRequest({
+      schema,
+      prompt,
+      maxTokens,
+      stage,
+      signal,
+      request: (text, limit) => ask(p, text, signal, limit),
+      onReply: (reply) => {
+        r.tokens += reply.tokens
+        saveResearch(r)
+      },
+      onRetry: (reason) => progress(`${stage}：${reason}，正在自动纠正…`),
+    })
   try {
     r.status = 'running'
     progress('正在规划检索词')
     if (!r.queries.length) {
-      const plan = await ask(
-        p,
-        `针对研究问题生成最多两个中性知乎检索关键词，避免只搜索赞同或反对一方。返回 {"queries":["关键词"]}。问题：${JSON.stringify(r.input.question)}`,
-        signal,
-        700,
-      )
-      r.tokens += plan.tokens
       try {
-        r.queries = [
-          ...new Set([
-            r.input.question,
-            ...planSchema.parse(parseJSON(plan.text)).queries,
-          ]),
-        ].slice(0, 3)
-      } catch {
+        const plan = await generate(
+          planSchema,
+          `针对研究问题生成最多两个中性知乎检索关键词，每个1—120字。返回 {"queries":["关键词"]}。问题：${JSON.stringify(r.input.question)}`,
+          700,
+          '检索规划',
+        )
+        r.queries = [...new Set([r.input.question, ...plan.queries])].slice(
+          0,
+          3,
+        )
+      } catch (error) {
+        if (!(error instanceof ModelFormatError)) throw error
         r.queries = [r.input.question]
       }
     }
+
     for (const period of r.periods) {
       check()
       if (period.status === 'done') continue
@@ -95,13 +114,12 @@ export async function runResearch(
       const known = [
         ...new Set(r.periods.flatMap((x) => x.opinions.map((o) => o.label))),
       ]
-      const response = await ask(
-        p,
-        `研究问题：${JSON.stringify(r.input.question)}。时间段：${period.label}。按主要立场归类，每条证据最多归入一个观点。尽量沿用已有标签 ${JSON.stringify(known)}，确实出现新观点时再新增。不能判断的样本归为“无法判断”。只依据摘要，不把当前赞同数当作历史热度。返回 {"summary":"阶段概括","opinions":[{"label":"简短观点","summary":"解释","evidenceIds":["精确ID"]}]}。样本：${JSON.stringify(period.evidence.map((x) => ({ id: x.id, title: x.title, text: x.text.slice(0, 5000) })))}`,
-        signal,
+      const analysis = await generate(
+        analysisSchema,
+        `研究问题：${JSON.stringify(r.input.question)}。时间段：${period.label}。按主要立场归类，最多8个观点；label为1—40字，阶段summary不超过2500字，每个观点summary不超过1200字，evidenceIds必须为字符串数组。每条证据最多归入一个观点。尽量沿用已有标签 ${JSON.stringify(known)}，确实出现新观点时再新增。不能判断的样本归为“无法判断”。只依据摘要，不把当前赞同数当作历史热度。返回 {"summary":"阶段概括","opinions":[{"label":"简短观点","summary":"解释","evidenceIds":["精确ID"]}]}。样本：${JSON.stringify(period.evidence.map((x) => ({ id: x.id, title: x.title, text: x.text.slice(0, 5000) })))}`,
+        3000,
+        `${period.label} 阶段分析`,
       )
-      r.tokens += response.tokens
-      const analysis = analysisSchema.parse(parseJSON(response.text))
       period.summary = analysis.summary
       period.opinions = cleanOpinions(analysis.opinions, period.evidence)
       const assigned = new Set(period.opinions.flatMap((x) => x.evidenceIds))
@@ -120,14 +138,13 @@ export async function runResearch(
     check()
     progress('正在整理跨时期变化')
     if (r.periods.some((x) => x.evidence.length)) {
-      const response = await ask(
-        p,
+      const final = await generate(
+        finalSchema,
         `请概括以下样本中观点随时间的变化。不要把样本当作全站民意，不对空白时期作推断，不推断同一作者改变观点。返回 {"overview":"约200字中文概括"}。问题：${JSON.stringify(r.input.question)}。阶段：${JSON.stringify(r.periods.map((x) => ({ period: x.label, sampleCount: x.evidence.length, summary: x.summary })))}`,
-        signal,
         1500,
+        '跨时期概括',
       )
-      r.tokens += response.tokens
-      r.overview = finalSchema.parse(parseJSON(response.text)).overview
+      r.overview = final.overview
     } else
       r.overview = '所选时间范围内未检索到足够样本，请尝试调整关键词或日期。'
     check()
@@ -139,7 +156,7 @@ export async function runResearch(
       signal.aborted
         ? '已取消，已完成的阶段已保存'
         : error instanceof z.ZodError || error instanceof SyntaxError
-          ? '模型返回格式无效，可继续分析重试当前阶段'
+          ? '响应数据异常，样本已保存，可继续分析'
           : (error as Error).message,
     )
   }

@@ -9,11 +9,14 @@ const require = createRequire(import.meta.url)
 const profile = await mkdtemp(join(tmpdir(), 'zh-timemachine-test-'))
 const output = resolve('test-results')
 await mkdir(output, { recursive: true })
+let injectedTruncation = false
 const server = createServer(async (req, res) => {
   let body = ''
   for await (const part of req) body += part
   const input = JSON.parse(body)
   const prompt = input.messages.at(-1).content
+  const truncate = prompt.includes('样本：') && !injectedTruncation
+  if (truncate) injectedTruncation = true
   const content = prompt.includes('阶段：')
     ? {
         overview:
@@ -43,8 +46,11 @@ const server = createServer(async (req, res) => {
       choices: [
         {
           index: 0,
-          message: { role: 'assistant', content: JSON.stringify(content) },
-          finish_reason: 'stop',
+          message: {
+            role: 'assistant',
+            content: truncate ? '{"summary":' : JSON.stringify(content),
+          },
+          finish_reason: truncate ? 'length' : 'stop',
         },
       ],
       usage: { prompt_tokens: 20, completion_tokens: 20, total_tokens: 40 },

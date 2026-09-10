@@ -1,5 +1,5 @@
 import { net } from 'electron'
-import { generateText } from 'ai'
+import { generateText, Output, NoObjectGeneratedError } from 'ai'
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible'
 import { createDeepSeek } from '@ai-sdk/deepseek'
 import { z } from 'zod'
@@ -7,6 +7,7 @@ import { createHash } from 'node:crypto'
 import type { Evidence, Provider } from '../shared/types'
 import { getSecret, cacheGet, cacheSet } from './store'
 import { sourceAllowed } from '../shared/logic'
+import type { ModelReply } from '../shared/structured'
 
 const payloadSchema = z.object({
   Code: z.number(),
@@ -61,7 +62,10 @@ export async function search(
     redirect: 'error',
   })
   if (!response.ok) throw new Error(`知乎请求失败（HTTP ${response.status}）`)
-  const data = payloadSchema.parse(await response.json())
+  const parsed = payloadSchema.safeParse(await response.json())
+  if (!parsed.success)
+    throw new Error('知乎响应字段格式异常，请稍后重试；这不是模型输出错误')
+  const data = parsed.data
   if (data.Code !== 0)
     throw new Error(
       (
@@ -99,7 +103,7 @@ export async function ask(
   prompt: string,
   signal: AbortSignal,
   maxTokens = 3000,
-): Promise<{ text: string; tokens: number }> {
+): Promise<ModelReply> {
   const config = {
     baseURL: p.baseURL,
     apiKey: getSecret(p.id),
@@ -118,6 +122,9 @@ export async function ask(
   try {
     const result = await generateText({
       model,
+      // JSON mode is enabled for the verified DeepSeek endpoint. Other compatible
+      // providers retain text mode because response_format support is not universal.
+      output: isDeepSeek ? Output.json() : undefined,
       providerOptions: isDeepSeek
         ? { deepseek: { thinking: { type: 'disabled' } } }
         : undefined,
@@ -128,9 +135,19 @@ export async function ask(
       maxRetries: 1,
       abortSignal: AbortSignal.any([signal, AbortSignal.timeout(120000)]),
     })
-    return { text: result.text, tokens: result.usage.totalTokens ?? 0 }
+    return {
+      text: result.text,
+      tokens: result.usage.totalTokens ?? 0,
+      finishReason: result.finishReason,
+    }
   } catch (e) {
     if (signal.aborted) throw new Error('任务已取消')
+    if (NoObjectGeneratedError.isInstance(e))
+      return {
+        text: e.text ?? '',
+        tokens: e.usage?.totalTokens ?? 0,
+        finishReason: e.finishReason,
+      }
     const status = (e as { statusCode?: number }).statusCode
     throw new Error(
       status
@@ -138,12 +155,4 @@ export async function ask(
         : '模型未能返回结果，请检查接口地址和网络，或稍后重试',
     )
   }
-}
-export function parseJSON(text: string): unknown {
-  return JSON.parse(
-    text
-      .trim()
-      .replace(/^```(?:json)?\s*/i, '')
-      .replace(/\s*```$/, ''),
-  )
 }

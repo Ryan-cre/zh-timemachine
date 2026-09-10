@@ -12,7 +12,7 @@
     "build": "npm run typecheck && electron-vite build",
     "start": "electron-vite preview",
     "typecheck": "tsc --noEmit",
-    "test": "node --test tests/logic.test.ts",
+    "test": "node --test tests/*.test.ts",
     "test:desktop": "node scripts/test-desktop.mjs",
     "pack": "npm run build && electron-builder --dir",
     "dist:win": "npm run build && electron-builder --win portable",
