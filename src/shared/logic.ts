@@ -83,14 +83,14 @@ export function cleanOpinions(
     }))
     .filter((x) => x.evidenceIds.length > 0)
 }
-export function sourceAllowed(url: string): boolean {
+export function sourceAllowed(url: string, source: 'zhihu' | 'global' = 'zhihu'): boolean {
   try {
     const u = new URL(url)
     return (
-      u.protocol === 'https:' &&
+      (u.protocol === 'https:' || (source === 'global' && u.protocol === 'http:')) &&
       !u.username &&
       !u.password &&
-      (u.hostname === 'zhihu.com' || u.hostname.endsWith('.zhihu.com'))
+      (source === 'global' || u.hostname === 'zhihu.com' || u.hostname.endsWith('.zhihu.com'))
     )
   } catch {
     return false

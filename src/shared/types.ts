@@ -1,3 +1,4 @@
+export type SearchSource = 'zhihu' | 'global'
 export interface Provider {
   id: string
   name: string
@@ -6,6 +7,7 @@ export interface Provider {
   hasKey: boolean
 }
 export interface Settings {
+  searchSource: SearchSource
   providers: Provider[]
   hasZhihuKey: boolean
   secureStorage: boolean
@@ -18,6 +20,7 @@ export interface ProviderInput {
   key?: string
 }
 export interface ResearchInput {
+  searchSource?: SearchSource
   question: string
   start: string
   end: string
@@ -72,6 +75,7 @@ export interface AppState {
   researches: Research[]
 }
 export interface DesktopAPI {
+  saveSearchSource(source: SearchSource): Promise<void>
   state(): Promise<AppState>
   saveProvider(input: ProviderInput): Promise<void>
   deleteProvider(id: string): Promise<void>
