@@ -33,6 +33,8 @@ const server = createServer(async (req, res) => {
             },
           ],
         }
+      : prompt.includes('搜索接口的摘要字段名称可能变化')
+        ? { ContentText: 'Summary' }
       : prompt.includes('queries')
         ? { queries: ['NiKo Major'] }
         : { ok: true }
@@ -91,8 +93,8 @@ try {
       if (url.pathname.endsWith('/global_search')) {
         globalThis.globalRequests.push(Object.fromEntries(url.searchParams))
         return Response.json({ Code: 0, Data: { HasMore: false, Items: [{
-          ContentID: 'global-fixture', ContentType: 'Article', Title: '全网样本',
-          ContentText: '期待未来夺冠。', Url: 'https://example.com/article',
+          ContentID: 'global-fixture', Title: '全网样本',
+          Summary: '期待未来夺冠。', Url: 'https://example.com/article',
           EditTime: 1800000000, VoteUpCount: 0, AuthorName: '测试作者',
         }] } })
       }
@@ -268,7 +270,8 @@ try {
   await page.getByLabel('搜索来源', { exact: true }).selectOption('global')
   await page.getByText('搜索来源已保存，用于新研究', { exact: true }).waitFor()
   assert.equal((await page.evaluate(() => window.desktop.state())).settings.searchSource, 'global')
-  assert.match(await page.evaluate(() => window.desktop.testZhihu()), /连接成功/)
+  // Settings probes do not use a model; research can repair a renamed summary.
+  await assert.rejects(page.evaluate(() => window.desktop.testZhihu()), /ContentText/)
   const globalId = await page.evaluate((providerId) => window.desktop.start({
     question: '全网观点测试', start: '2024-01-01', end: '2025-12-31',
     grain: 'year', providerId, maxSearches: 2,
@@ -280,6 +283,7 @@ try {
   assert.equal(globalResult.input.searchSource, 'global')
   assert.equal(globalResult.periods[0].evidence[0].url, 'https://example.com/article')
   assert.equal(globalResult.periods[0].opinions[0].label, '期待夺冠')
+  assert.ok(globalResult.periods[0].warnings.some((warning) => warning.includes('模型辅助匹配')))
   const globalRequests = await desktop.evaluate(() => globalThis.globalRequests)
   assert.equal(globalRequests.length, 3)
   for (const request of globalRequests) {

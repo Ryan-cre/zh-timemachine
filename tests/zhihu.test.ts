@@ -18,6 +18,14 @@ test('business errors with Data:null keep the real error code', () => {
       new RegExp(`Code ${code}`),
     )
 })
+
+test('missing content type does not discard usable evidence', () => {
+  for (const ContentType of [undefined, null, '', '   ']) {
+    const result = parseZhihuResponse({ Code: 0, Data: { Items: [{ ...item, ContentType }] } })
+    assert.equal(result.items[0].ContentType, 'Unknown')
+    assert.equal(result.items[0].ContentText, item.ContentText)
+  }
+})
 test('nullable optional fields and numeric strings are normalized, long IDs stay exact', () => {
   const result = parseZhihuResponse({
     Code: '0',
