@@ -896,6 +896,11 @@ export default function App() {
                     <IconLabel>{period.label} / 阶段观点</IconLabel>
                     <h2>这一时期，人们怎么看？</h2>
                     <p>{period.summary || '等待分析这一时间段。'}</p>
+                    {period.warnings?.map((warning) => (
+                      <div key={warning} className="sample-note">
+                        {warning}
+                      </div>
+                    ))}
                     {period.saturated && (
                       <div className="sample-note">
                         本阶段有搜索达到 10 条上限，样本可能未完整覆盖。

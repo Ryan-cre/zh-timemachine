@@ -80,9 +80,16 @@ try {
   await page.screenshot({ path: join(output, 'home.png') })
   await desktop.evaluate(({ net }) => {
     const original = net.fetch.bind(net)
+    let errorSent = false
     net.fetch = async (input, init) => {
       const url = new URL(typeof input === 'string' ? input : input.url)
       if (url.hostname !== 'developer.zhihu.com') return original(input, init)
+      if (!errorSent) {
+        errorSent = true
+        return new Response(JSON.stringify({ Code: 30001, Data: null }), {
+          headers: { 'Content-Type': 'application/json' },
+        })
+      }
       const range = url.searchParams.get('SortBy')?.match(/\((\d+),(\d+)\)/)
       return new Response(
         JSON.stringify({
@@ -96,8 +103,8 @@ try {
                 ContentText: '我依然期待他能够夺冠，这是测试样本。',
                 Url: 'https://www.zhihu.com/answer/fixture',
                 EditTime: range ? Number(range[1]) + 100 : 1704067200,
-                VoteUpCount: 12,
-                AuthorName: '测试作者',
+                VoteUpCount: null,
+                AuthorName: null,
               },
             ],
           },
@@ -123,6 +130,10 @@ try {
   const state = await page.evaluate(() => window.desktop.state())
   assert.equal(state.settings.hasZhihuKey, true)
   assert.equal(JSON.stringify(state).includes('test-provider-secret'), false)
+  await assert.rejects(
+    page.evaluate(() => window.desktop.testZhihu()),
+    /Code 30001/,
+  )
   const id = await page.evaluate(
     async (providerId) =>
       window.desktop.start({

@@ -49,6 +49,7 @@ export interface Period {
   opinions: Opinion[]
   status: 'pending' | 'done'
   saturated: boolean
+  warnings?: string[]
 }
 export interface Research {
   id: string

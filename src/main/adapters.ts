@@ -2,34 +2,12 @@ import { net } from 'electron'
 import { generateText, Output, NoObjectGeneratedError } from 'ai'
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible'
 import { createDeepSeek } from '@ai-sdk/deepseek'
-import { z } from 'zod'
 import { createHash } from 'node:crypto'
 import type { Evidence, Provider } from '../shared/types'
 import { getSecret, cacheGet, cacheSet } from './store'
 import { sourceAllowed } from '../shared/logic'
 import type { ModelReply } from '../shared/structured'
-
-const payloadSchema = z.object({
-  Code: z.number(),
-  Data: z
-    .object({
-      Items: z
-        .array(
-          z.object({
-            ContentID: z.string(),
-            ContentType: z.string(),
-            Title: z.string(),
-            ContentText: z.string(),
-            Url: z.string(),
-            EditTime: z.number(),
-            VoteUpCount: z.number().default(0),
-            AuthorName: z.string().default(''),
-          }),
-        )
-        .default([]),
-    })
-    .optional(),
-})
+import { parseZhihuResponse } from '../shared/zhihu'
 
 export async function search(
   query: string,
@@ -37,7 +15,12 @@ export async function search(
   to: number | undefined,
   signal: AbortSignal,
   useCache = true,
-): Promise<{ items: Evidence[]; saturated: boolean; cached: boolean }> {
+): Promise<{
+  items: Evidence[]
+  saturated: boolean
+  cached: boolean
+  warnings: string[]
+}> {
   const key = getSecret('zhihu')
   const url = new URL('https://developer.zhihu.com/api/v1/content/zhihu_search')
   url.searchParams.set('Query', query)
@@ -50,7 +33,7 @@ export async function search(
   if (useCache) {
     const cached = cacheGet(cacheId) as
       { items: Evidence[]; saturated: boolean } | undefined
-    if (cached) return { ...cached, cached: true }
+    if (cached) return { warnings: [], ...cached, cached: true }
   }
   const response = await net.fetch(url.toString(), {
     headers: {
@@ -62,38 +45,35 @@ export async function search(
     redirect: 'error',
   })
   if (!response.ok) throw new Error(`知乎请求失败（HTTP ${response.status}）`)
-  const parsed = payloadSchema.safeParse(await response.json())
-  if (!parsed.success)
-    throw new Error('知乎响应字段格式异常，请稍后重试；这不是模型输出错误')
-  const data = parsed.data
-  if (data.Code !== 0)
-    throw new Error(
-      (
-        {
-          10001: '知乎参数错误',
-          20001: '知乎凭证无效',
-          30001: '知乎调用频率受限，请稍后继续',
-          90001: '知乎服务暂时不可用',
-        } as Record<number, string>
-      )[data.Code] || `知乎错误 ${data.Code}`,
+  let raw: unknown
+  try {
+    raw = await response.json()
+  } catch {
+    throw new Error('知乎服务返回了非 JSON 响应，请稍后继续分析')
+  }
+  const data = parseZhihuResponse(raw)
+  const items = data.items
+    .filter(
+      (x) =>
+        sourceAllowed(x.Url) &&
+        (from === undefined || x.EditTime >= from) &&
+        (to === undefined || x.EditTime <= to),
     )
-  if (!data.Data) throw new Error('知乎返回了空响应')
-  const items = data.Data.Items.filter(
-    (x) =>
-      sourceAllowed(x.Url) &&
-      (from === undefined || x.EditTime >= from) &&
-      (to === undefined || x.EditTime <= to),
-  ).map((x) => ({
-    id: `${x.ContentType}:${x.ContentID}`,
-    title: x.Title,
-    text: x.ContentText.replace(/<[^>]*>/g, ''),
-    url: x.Url,
-    time: x.EditTime,
-    votes: x.VoteUpCount,
-    author: x.AuthorName,
-    capturedAt: new Date().toISOString(),
-  }))
-  const result = { items, saturated: data.Data.Items.length >= 10 }
+    .map((x) => ({
+      id: `${x.ContentType}:${x.ContentID}`,
+      title: x.Title,
+      text: x.ContentText.replace(/<[^>]*>/g, ''),
+      url: x.Url,
+      time: x.EditTime,
+      votes: x.VoteUpCount,
+      author: x.AuthorName,
+      capturedAt: new Date().toISOString(),
+    }))
+  const result = {
+    items,
+    saturated: data.rawCount >= 10,
+    warnings: data.warnings,
+  }
   cacheSet(cacheId, result)
   return { ...result, cached: false }
 }

@@ -95,6 +95,9 @@ export async function runResearch(
           saveResearch(r)
           const result = await search(query, period.from, period.to, signal)
           period.saturated ||= result.saturated
+          period.warnings = [
+            ...new Set([...(period.warnings ?? []), ...result.warnings]),
+          ]
           for (const item of result.items)
             if (!seen.has(item.id)) {
               seen.add(item.id)
