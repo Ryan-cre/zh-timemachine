@@ -69,3 +69,11 @@ test('fabricated references and duplicate classifications are excluded', () => {
     [['Answer:1'], ['Answer:2']],
   )
 })
+
+test('global sources allow web links but never executable protocols or embedded credentials', () => {
+  assert.equal(sourceAllowed('https://example.com/article', 'global'), true)
+  assert.equal(sourceAllowed('http://example.com/article', 'global'), true)
+  assert.equal(sourceAllowed('https://example.com/article'), false)
+  for (const url of ['file:///C:/test', 'javascript:alert(1)', 'https://user:secret@example.com'])
+    assert.equal(sourceAllowed(url, 'global'), false)
+})

@@ -57,6 +57,7 @@ export function getSecret(id: string): string {
 }
 export function settings(): Settings {
   return {
+    searchSource: list<{ source: 'zhihu' | 'global' }>('search-source')[0]?.source ?? 'zhihu',
     providers: list<Provider>('provider').map((p) => ({
       ...p,
       hasKey: hasSecret(p.id),
@@ -92,6 +93,9 @@ export function cacheGet(id: string): unknown | undefined {
 }
 export function cacheSet(id: string, data: unknown) {
   put('cache', id, { at: Date.now(), data })
+}
+export function saveSearchSource(source: 'zhihu' | 'global') {
+  put('search-source', 'default', { source })
 }
 export function getRateState(id: string): RateState {
   const row = db.prepare('SELECT data FROM records WHERE kind=? AND id=?').get('rate', id)

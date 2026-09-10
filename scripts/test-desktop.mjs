@@ -29,7 +29,7 @@ const server = createServer(async (req, res) => {
             {
               label: '期待夺冠',
               summary: '仍然看好选手的未来。',
-              evidenceIds: ['Answer:fixture'],
+              evidenceIds: [prompt.includes('global:https://example.com/article') ? 'global:https://example.com/article' : 'Answer:fixture'],
             },
           ],
         }
@@ -82,11 +82,20 @@ try {
     const original = net.fetch.bind(net)
     globalThis.zhihuCalls = 0
     globalThis.checkpointCalls = []
+    globalThis.globalRequests = []
     let checkpointFailed = false
     net.fetch = async (input, init) => {
       const url = new URL(typeof input === 'string' ? input : input.url)
       if (url.hostname !== 'developer.zhihu.com') return original(input, init)
       globalThis.zhihuCalls++
+      if (url.pathname.endsWith('/global_search')) {
+        globalThis.globalRequests.push(Object.fromEntries(url.searchParams))
+        return Response.json({ Code: 0, Data: { HasMore: false, Items: [{
+          ContentID: 'global-fixture', ContentType: 'Article', Title: '全网样本',
+          ContentText: '期待未来夺冠。', Url: 'https://example.com/article',
+          EditTime: 1800000000, VoteUpCount: 0, AuthorName: '测试作者',
+        }] } })
+      }
       if (url.searchParams.get('Query') === '知乎') {
         return new Response(JSON.stringify({ Code: 30001, Data: null }), {
           headers: { 'Content-Type': 'application/json' },
@@ -256,6 +265,31 @@ try {
   assert.equal(resumed.searches, 3)
   assert.deepEqual(await desktop.evaluate(() => globalThis.checkpointCalls),
     ['断点测试', 'NiKo Major', 'NiKo Major'])
+  await page.getByLabel('搜索来源', { exact: true }).selectOption('global')
+  await page.getByText('搜索来源已保存，用于新研究', { exact: true }).waitFor()
+  assert.equal((await page.evaluate(() => window.desktop.state())).settings.searchSource, 'global')
+  assert.match(await page.evaluate(() => window.desktop.testZhihu()), /连接成功/)
+  const globalId = await page.evaluate((providerId) => window.desktop.start({
+    question: '全网观点测试', start: '2024-01-01', end: '2025-12-31',
+    grain: 'year', providerId, maxSearches: 2,
+  }), state.settings.providers[0].id)
+  // Changing the default while running must not change this research's source.
+  await page.evaluate(() => window.desktop.saveSearchSource('zhihu'))
+  const globalResult = await waitResearch(globalId)
+  assert.equal(globalResult.status, 'done', globalResult.message)
+  assert.equal(globalResult.input.searchSource, 'global')
+  assert.equal(globalResult.periods[0].evidence[0].url, 'https://example.com/article')
+  assert.equal(globalResult.periods[0].opinions[0].label, '期待夺冠')
+  const globalRequests = await desktop.evaluate(() => globalThis.globalRequests)
+  assert.equal(globalRequests.length, 3)
+  for (const request of globalRequests) {
+    assert.equal(request.Count, '20')
+    assert.equal(request.SearchDB, 'all')
+    assert.equal(request.SortBy, undefined)
+  }
+  assert.match(globalRequests[1].Filter, /^publish_time>=\d+ AND publish_time<=\d+$/)
+  await assert.rejects(page.evaluate(() => window.desktop.openSource('javascript:alert(1)')), /来源链接/)
+  await page.screenshot({ path: join(output, 'search-source.png') })
   await assert.rejects(page.evaluate(() => window.desktop.testZhihu()), /Code 30001/)
   const calls = await desktop.evaluate(() => globalThis.zhihuCalls)
   await assert.rejects(page.evaluate(() => window.desktop.testZhihu()), /本地冷却/)

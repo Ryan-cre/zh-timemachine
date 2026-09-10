@@ -340,7 +340,7 @@ export default function App() {
                     <span>如何被时间改变。</span>
                   </h1>
                   <p>
-                    从知乎的讨论中提取证据、梳理语境，
+                    从{settings.searchSource === 'global' ? '全网' : '知乎'}的讨论中提取证据、梳理语境，
                     <br />
                     让每一次立场转折都有迹可循。
                   </p>
@@ -501,7 +501,7 @@ export default function App() {
                   <div>
                     <span>
                       {dateError ||
-                        `${segments} 个时间段 · 每次最多 10 条搜索结果`}
+                        `${segments} 个时间段 · ${settings.searchSource === 'global' ? '全网搜索 · 每次最多 20' : '知乎搜索 · 每次最多 10'} 条搜索结果`}
                     </span>
                     <small>
                       模型调用按供应商计费，完成后显示实际 token 用量。
@@ -637,6 +637,25 @@ export default function App() {
                     })
                   }}
                 >
+                  <label>
+                    搜索来源
+                    <select
+                      aria-label="搜索来源"
+                      value={settings.searchSource}
+                      disabled={busy}
+                      onChange={(e) => {
+                        const source = e.target.value as 'zhihu' | 'global'
+                        void action(async () => {
+                          await api.saveSearchSource(source)
+                          setNotice('搜索来源已保存，用于新研究')
+                        })
+                      }}
+                    >
+                      <option value="zhihu">知乎搜索</option>
+                      <option value="global">全网搜索</option>
+                    </select>
+                  </label>
+                  <p className="sample-note">共用下方凭证；切换仅影响新研究，测试连接使用当前选择。</p>
                   <label>
                     Access Secret
                     <div className="input-action">
@@ -804,6 +823,7 @@ export default function App() {
                 <p>
                   {research.input.start} — {research.input.end}{' '}
                   <span className="inline-dot">·</span> {research.model}
+                  <span className="inline-dot">·</span> {research.input.searchSource === 'global' ? '全网搜索' : '知乎搜索'}
                 </p>
               </div>
               <div className="stats">
@@ -989,7 +1009,7 @@ export default function App() {
                     ))}
                     {period.saturated && (
                       <div className="sample-note">
-                        本阶段有搜索达到 10 条上限，样本可能未完整覆盖。
+                        本阶段有搜索达到 {research.input.searchSource === 'global' ? 20 : 10} 条上限，样本可能未完整覆盖。
                       </div>
                     )}
                     <button
@@ -1031,7 +1051,7 @@ export default function App() {
                       .map((e) => (
                         <article className="evidence panel" key={e.id}>
                           <div className="source-meta">
-                            <span>知乎 · {e.author || '匿名作者'}</span>
+                            <span>{research.input.searchSource === 'global' ? new URL(e.url).hostname : '知乎'} · {e.author || '匿名作者'}</span>
                             <time>
                               {new Date(e.time * 1000).toLocaleDateString(
                                 'zh-CN',

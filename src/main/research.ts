@@ -61,7 +61,7 @@ export async function runResearch(
       try {
         const plan = await generate(
           planSchema,
-          `针对研究问题生成最多两个中性知乎检索关键词，每个1—120字。返回 {"queries":["关键词"]}。问题：${JSON.stringify(r.input.question)}`,
+          `针对研究问题生成最多两个中性${r.input.searchSource === 'global' ? '全网' : '知乎'}检索关键词，每个1—120字。返回 {"queries":["关键词"]}。问题：${JSON.stringify(r.input.question)}`,
           700,
           '检索规划',
         )
@@ -102,7 +102,7 @@ export async function runResearch(
           const result = await search(query, period.from, period.to, signal, true, () => {
             r.searches += 1
             saveResearch(r)
-          })
+          }, r.input.searchSource ?? 'zhihu')
           period.saturated ||= result.saturated
           period.warnings = [
             ...new Set([...(period.warnings ?? []), ...result.warnings]),

@@ -20,6 +20,7 @@ export async function search(
   signal: AbortSignal,
   useCache = true,
   onAttempt: () => void = () => {},
+  source: 'zhihu' | 'global' = 'zhihu',
 ): Promise<{
   items: Evidence[]
   saturated: boolean
@@ -27,11 +28,14 @@ export async function search(
   warnings: string[]
 }> {
   const key = getSecret('zhihu')
-  const url = new URL('https://developer.zhihu.com/api/v1/content/zhihu_search')
+  const url = new URL(`https://developer.zhihu.com/api/v1/content/${source === 'global' ? 'global_search' : 'zhihu_search'}`)
   url.searchParams.set('Query', query)
-  url.searchParams.set('Count', '10')
-  if (from !== undefined && to !== undefined)
-    url.searchParams.set('SortBy', `EditTime:asc:(${from},${to})`)
+  url.searchParams.set('Count', source === 'global' ? '20' : '10')
+  if (source === 'global') url.searchParams.set('SearchDB', 'all')
+  if (from !== undefined && to !== undefined) {
+    if (source === 'global') url.searchParams.set('Filter', `publish_time>=${from} AND publish_time<=${to}`)
+    else url.searchParams.set('SortBy', `EditTime:asc:(${from},${to})`)
+  }
   const cacheId = createHash('sha256')
     .update(key + url.toString())
     .digest('hex')
@@ -93,12 +97,12 @@ export async function search(
     const items = data.items
       .filter(
         (x) =>
-          sourceAllowed(x.Url) &&
-          (from === undefined || x.EditTime >= from) &&
-          (to === undefined || x.EditTime <= to),
+          sourceAllowed(x.Url, source) &&
+          (source === 'global' || ((from === undefined || x.EditTime >= from) &&
+          (to === undefined || x.EditTime <= to))),
       )
       .map((x) => ({
-        id: `${x.ContentType}:${x.ContentID}`,
+        id: source === 'global' ? `global:${x.Url}` : `${x.ContentType}:${x.ContentID}`,
         title: x.Title,
         text: x.ContentText.replace(/<[^>]*>/g, ''),
         url: x.Url,
@@ -109,8 +113,8 @@ export async function search(
       }))
     const result = {
       items,
-      saturated: data.rawCount >= 10,
-      warnings: data.warnings,
+      saturated: data.rawCount >= (source === 'global' ? 20 : 10),
+      warnings: source === 'global' ? [...data.warnings, '按接口发布时间筛选；来源显示的是最后编辑时间，可能不在本阶段内。'] : data.warnings,
     }
     cacheSet(cacheId, result)
     return { ...result, cached: false }

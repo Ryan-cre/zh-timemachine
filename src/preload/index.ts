@@ -6,6 +6,7 @@ async function invoke(channel: string, ...args: unknown[]) {
   return result.value
 }
 const api: DesktopAPI = {
+  saveSearchSource: (source) => invoke('search:source', source),
   state: () => invoke('state'),
   saveProvider: (p) => invoke('provider:save', p),
   deleteProvider: (id) => invoke('provider:delete', id),
