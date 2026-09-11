@@ -20,31 +20,11 @@
 
 ## 如何使用
 
-独立的桌面应用，当前为 Windows 开发预览版，后续适配 macOS 与 Linux。
+从 [Releases](https://github.com/nahc2o4/zh-timemachine/releases/latest) 下载 Windows 版，打开即可使用。
 
 在设置中选择知乎搜索或全网搜索，填写知乎开放平台凭证、添加模型供应商，即可开始研究。应用在本地运行和保存数据，直接调用搜索与 LLM API，无需云端部署。切换搜索来源仅影响新研究。
 
-## 当前进度
-
-- [x] 开发工具链准备完成。
-- [x] 知乎搜索与 DeepSeek API 连通测试通过。
-- [x] 桌面界面与模型供应商配置。
-- [x] 按时间检索、观点分析与本地存储。
-- [x] 可交互的观点时间线。
-- [ ] macOS 与 Linux 实机验证。
-
-## 开发
-
-Electron · React · TypeScript · AI SDK · Recharts · SQLite
-
-使用 Node.js 24 LTS，在项目目录执行：
-
-```sh
-npm ci
-npm run dev
-```
-
-在“模型与连接”中填写凭证，即可新建研究。支持取消、继续分析和导出研究数据。更多说明见 [开发环境](docs/DEVELOPMENT.md)。
+支持取消、继续分析和导出研究数据。
 
 ---
 
