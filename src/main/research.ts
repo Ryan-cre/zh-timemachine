@@ -61,7 +61,7 @@ export async function runResearch(
       try {
         const plan = await generate(
           planSchema,
-          `针对研究问题生成最多两个中性知乎检索关键词，每个1—120字。返回 {"queries":["关键词"]}。问题：${JSON.stringify(r.input.question)}`,
+          `针对研究问题生成最多两个中性${r.input.searchSource === 'global' ? '全网' : '知乎'}检索关键词，每个1—120字。返回 {"queries":["关键词"]}。问题：${JSON.stringify(r.input.question)}`,
           700,
           '检索规划',
         )
@@ -79,21 +79,37 @@ export async function runResearch(
       check()
       if (period.status === 'done') continue
       // Reserve one search per remaining period; extra query expansions use only spare budget.
-      if (!period.evidence.length) {
-        const remaining = r.periods.filter((x) => x.status !== 'done').length
-        const count = Math.min(
-          r.queries.length,
-          Math.floor((r.input.maxSearches - r.searches) / remaining),
-        )
-        if (count < 1)
-          throw new Error('搜索次数上限已用尽；请新建研究并提高上限')
-        const seen = new Set<string>()
-        for (const query of r.queries.slice(0, count)) {
-          check()
-          progress(`正在搜索 ${period.label} · ${query}`)
-          r.searches += 1
+      if (!period.searchComplete && !(period.searchQueries === undefined && period.evidence.length)) {
+        if (!period.searchQueries) {
+          const remaining = r.periods.filter((x) => x.status !== 'done').length
+          const count = Math.min(
+            r.queries.length,
+            Math.floor((r.input.maxSearches - r.searches) / remaining),
+          )
+          if (count < 1)
+            throw new Error('搜索次数上限已用尽；请新建研究并提高上限')
+          period.searchQueries = r.queries.slice(0, count)
+          period.completedQueries = []
           saveResearch(r)
-          const result = await search(query, period.from, period.to, signal)
+        }
+        const seen = new Set(period.evidence.map((item) => item.id))
+        for (const query of period.searchQueries) {
+          if (period.completedQueries?.includes(query)) continue
+          check()
+          if (r.searches >= r.input.maxSearches)
+            throw new Error('搜索次数上限已用尽；请新建研究并提高上限')
+          progress(`正在搜索 ${period.label} · ${query}`)
+          const result = await search(query, period.from, period.to, signal, true, () => {
+            r.searches += 1
+            saveResearch(r)
+          }, r.input.searchSource ?? 'zhihu', async (prompt) => {
+            check()
+            progress(`${period.label} · 正在尝试识别搜索摘要字段`)
+            const reply = await ask(p, prompt, signal, 700)
+            r.tokens += reply.tokens
+            saveResearch(r)
+            return reply.text
+          })
           period.saturated ||= result.saturated
           period.warnings = [
             ...new Set([...(period.warnings ?? []), ...result.warnings]),
@@ -103,7 +119,10 @@ export async function runResearch(
               seen.add(item.id)
               period.evidence.push(item)
             }
+          period.completedQueries = [...(period.completedQueries ?? []), query]
+          saveResearch(r)
         }
+        period.searchComplete = true
         saveResearch(r)
       }
       check()

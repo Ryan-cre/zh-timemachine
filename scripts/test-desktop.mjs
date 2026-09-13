@@ -29,10 +29,12 @@ const server = createServer(async (req, res) => {
             {
               label: '期待夺冠',
               summary: '仍然看好选手的未来。',
-              evidenceIds: ['Answer:fixture'],
+              evidenceIds: [prompt.includes('global:https://example.com/article') ? 'global:https://example.com/article' : 'Answer:fixture'],
             },
           ],
         }
+      : prompt.includes('搜索接口的摘要字段名称可能变化')
+        ? { ContentText: 'Summary' }
       : prompt.includes('queries')
         ? { queries: ['NiKo Major'] }
         : { ok: true }
@@ -80,17 +82,38 @@ try {
   await page.screenshot({ path: join(output, 'home.png') })
   await desktop.evaluate(({ net }) => {
     const original = net.fetch.bind(net)
-    let errorSent = false
+    globalThis.zhihuCalls = 0
+    globalThis.checkpointCalls = []
+    globalThis.globalRequests = []
+    let checkpointFailed = false
     net.fetch = async (input, init) => {
       const url = new URL(typeof input === 'string' ? input : input.url)
       if (url.hostname !== 'developer.zhihu.com') return original(input, init)
-      if (!errorSent) {
-        errorSent = true
+      globalThis.zhihuCalls++
+      if (url.pathname.endsWith('/global_search')) {
+        globalThis.globalRequests.push(Object.fromEntries(url.searchParams))
+        return Response.json({ Code: 0, Data: { HasMore: false, Items: [{
+          ContentID: 'global-fixture', Title: '全网样本',
+          Summary: '期待未来夺冠。', Url: 'https://example.com/article',
+          EditTime: 1800000000, VoteUpCount: 0, AuthorName: '测试作者',
+        }] } })
+      }
+      if (url.searchParams.get('Query') === '知乎') {
         return new Response(JSON.stringify({ Code: 30001, Data: null }), {
           headers: { 'Content-Type': 'application/json' },
         })
       }
       const range = url.searchParams.get('SortBy')?.match(/\((\d+),(\d+)\)/)
+      if (range && Number(range[1]) < 1700000000) {
+        const query = url.searchParams.get('Query')
+        globalThis.checkpointCalls.push(query)
+        if (query === '断点测试')
+          return Response.json({ Code: 0, Data: { Items: [] } })
+        if (!checkpointFailed) {
+          checkpointFailed = true
+          return Response.json({ Code: 90001, Data: null })
+        }
+      }
       return new Response(
         JSON.stringify({
           Code: 0,
@@ -130,10 +153,6 @@ try {
   const state = await page.evaluate(() => window.desktop.state())
   assert.equal(state.settings.hasZhihuKey, true)
   assert.equal(JSON.stringify(state).includes('test-provider-secret'), false)
-  await assert.rejects(
-    page.evaluate(() => window.desktop.testZhihu()),
-    /Code 30001/,
-  )
   const id = await page.evaluate(
     async (providerId) =>
       window.desktop.start({
@@ -225,6 +244,62 @@ try {
   await page.getByRole('button', { name: '添加供应商' }).click()
   await page.keyboard.press('Escape')
   assert.equal(await page.getByRole('dialog').count(), 0)
+  const checkpointId = await page.evaluate((providerId) => window.desktop.start({
+    question: '断点测试', start: '2023-01-01', end: '2023-12-31',
+    grain: 'year', providerId, maxSearches: 4,
+  }), state.settings.providers[0].id)
+  const waitResearch = async (id) => {
+    for (let attempt = 0; attempt < 150; attempt++) {
+      const r = await page.evaluate(async (id) =>
+        (await window.desktop.state()).researches.find((r) => r.id === id), id)
+      if (r.status !== 'running') return r
+      await new Promise((resolve) => setTimeout(resolve, 100))
+    }
+    throw new Error('Research did not finish')
+  }
+  const interrupted = await waitResearch(checkpointId)
+  assert.equal(interrupted.status, 'failed')
+  assert.deepEqual(interrupted.periods[0].completedQueries, ['断点测试'])
+  assert.equal(interrupted.periods[0].evidence.length, 0)
+  await page.evaluate((id) => window.desktop.resume(id), checkpointId)
+  const resumed = await waitResearch(checkpointId)
+  assert.equal(resumed.status, 'done', resumed.message)
+  assert.equal(resumed.searches, 3)
+  assert.deepEqual(await desktop.evaluate(() => globalThis.checkpointCalls),
+    ['断点测试', 'NiKo Major', 'NiKo Major'])
+  await page.getByLabel('搜索来源', { exact: true }).selectOption('global')
+  await page.getByText('搜索来源已保存，用于新研究', { exact: true }).waitFor()
+  assert.equal((await page.evaluate(() => window.desktop.state())).settings.searchSource, 'global')
+  // Settings probes do not use a model; research can repair a renamed summary.
+  await assert.rejects(page.evaluate(() => window.desktop.testZhihu()), /ContentText/)
+  const globalId = await page.evaluate((providerId) => window.desktop.start({
+    question: '全网观点测试', start: '2024-01-01', end: '2025-12-31',
+    grain: 'year', providerId, maxSearches: 2,
+  }), state.settings.providers[0].id)
+  // Changing the default while running must not change this research's source.
+  await page.evaluate(() => window.desktop.saveSearchSource('zhihu'))
+  const globalResult = await waitResearch(globalId)
+  assert.equal(globalResult.status, 'done', globalResult.message)
+  assert.equal(globalResult.input.searchSource, 'global')
+  assert.equal(globalResult.periods[0].evidence[0].url, 'https://example.com/article')
+  assert.equal(globalResult.periods[0].opinions[0].label, '期待夺冠')
+  assert.ok(globalResult.periods[0].warnings.some((warning) => warning.includes('模型辅助匹配')))
+  const globalRequests = await desktop.evaluate(() => globalThis.globalRequests)
+  assert.equal(globalRequests.length, 3)
+  for (const request of globalRequests) {
+    assert.equal(request.Count, '20')
+    assert.equal(request.SearchDB, 'all')
+    assert.equal(request.SortBy, undefined)
+  }
+  assert.match(globalRequests[1].Filter, /^publish_time>=\d+ AND publish_time<=\d+$/)
+  await assert.rejects(page.evaluate(() => window.desktop.openSource('javascript:alert(1)')), /来源链接/)
+  await page.screenshot({ path: join(output, 'search-source.png') })
+  await assert.rejects(page.evaluate(() => window.desktop.testZhihu()), /Code 30001/)
+  const calls = await desktop.evaluate(() => globalThis.zhihuCalls)
+  await assert.rejects(page.evaluate(() => window.desktop.testZhihu()), /本地冷却/)
+  assert.equal(await desktop.evaluate(() => globalThis.zhihuCalls), calls)
+  assert.equal(result.periods[0].searchComplete, true)
+  assert.equal(result.periods[0].completedQueries.length, 1)
   const db = await readFile(join(profile, 'timemachine.db'))
   const wal = await readFile(join(profile, 'timemachine.db-wal')).catch(() =>
     Buffer.alloc(0),

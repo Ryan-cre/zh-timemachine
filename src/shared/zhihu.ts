@@ -1,5 +1,13 @@
 import { z } from 'zod'
 
+export class ZhihuAPIError extends Error {
+  code: number
+  constructor(code: number, message: string) {
+    super(`${message}（Code ${code}）`)
+    this.code = code
+  }
+}
+
 const integer = z
   .union([
     z.number(),
@@ -19,7 +27,7 @@ const optionalText = z
   .transform((value) => value ?? '')
 const itemSchema = z.object({
   ContentID: contentID,
-  ContentType: z.string().min(1),
+  ContentType: z.string().nullish().transform((value) => value?.trim() || 'Unknown'),
   Title: optionalText,
   ContentText: z.string().min(1),
   Url: z.string().url(),
@@ -47,7 +55,7 @@ export function parseZhihuResponse(raw: unknown): {
       30001: '知乎调用频率受限，请稍后继续分析',
       90001: '知乎服务暂时不可用，请稍后继续分析',
     }
-    throw new Error(`${messages[code] ?? '知乎请求未成功'}（Code ${code}）`)
+    throw new ZhihuAPIError(code, messages[code] ?? '知乎请求未成功')
   }
   const data = z
     .object({

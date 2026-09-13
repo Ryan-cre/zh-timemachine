@@ -1,3 +1,4 @@
+export type SearchSource = 'zhihu' | 'global'
 export interface Provider {
   id: string
   name: string
@@ -6,6 +7,7 @@ export interface Provider {
   hasKey: boolean
 }
 export interface Settings {
+  searchSource: SearchSource
   providers: Provider[]
   hasZhihuKey: boolean
   secureStorage: boolean
@@ -18,6 +20,7 @@ export interface ProviderInput {
   key?: string
 }
 export interface ResearchInput {
+  searchSource?: SearchSource
   question: string
   start: string
   end: string
@@ -50,6 +53,9 @@ export interface Period {
   status: 'pending' | 'done'
   saturated: boolean
   warnings?: string[]
+  searchQueries?: string[]
+  completedQueries?: string[]
+  searchComplete?: boolean
 }
 export interface Research {
   id: string
@@ -69,6 +75,7 @@ export interface AppState {
   researches: Research[]
 }
 export interface DesktopAPI {
+  saveSearchSource(source: SearchSource): Promise<void>
   state(): Promise<AppState>
   saveProvider(input: ProviderInput): Promise<void>
   deleteProvider(id: string): Promise<void>
@@ -80,6 +87,6 @@ export interface DesktopAPI {
   cancel(id: string): Promise<void>
   remove(id: string): Promise<void>
   openSource(url: string): Promise<void>
-  exportResearch(id: string): Promise<boolean>
+  exportResearch(id: string, format?: 'markdown' | 'json'): Promise<boolean>
   onChanged(callback: () => void): () => void
 }

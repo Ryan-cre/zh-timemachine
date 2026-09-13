@@ -8,6 +8,7 @@ import * as store from './store'
 import { makePeriods, sourceAllowed, validateBaseURL } from '../shared/logic'
 import { search, ask } from './adapters'
 import { runResearch } from './research'
+import { researchToMarkdown } from '../shared/report'
 import type { Research, ResearchInput } from '../shared/types'
 
 app.setName('ZH-Timemachine')
@@ -102,6 +103,9 @@ function wire() {
     if (running) throw new Error('请等待当前研究结束后修改凭证')
     store.setSecret('zhihu', z.string().trim().min(1).max(4000).parse(key))
   })
+  handle('search:source', (source) => {
+    store.saveSearchSource(z.enum(['zhihu', 'global']).parse(source))
+  })
   handle('provider:test', async (id) => {
     const result = await ask(
       getProvider(z.string().uuid().parse(id)),
@@ -118,6 +122,8 @@ function wire() {
       undefined,
       new AbortController().signal,
       false,
+      undefined,
+      store.settings().searchSource,
     )
     return `连接成功 · 返回 ${result.items.length} 条结果`
   })
@@ -133,6 +139,7 @@ function wire() {
         maxSearches: z.number().int().min(1).max(72),
       })
       .parse(raw)
+    input.searchSource = store.settings().searchSource
     const periods = makePeriods(input.start, input.end, input.grain)
     if (input.maxSearches < periods.length)
       throw new Error(`至少需要 ${periods.length} 次搜索才能覆盖全部时间段`)
@@ -165,18 +172,30 @@ function wire() {
     store.removeResearch(z.string().uuid().parse(id))
   })
   handle('source:open', async (url) => {
-    if (!sourceAllowed(z.string().parse(url)))
-      throw new Error('只允许打开知乎 HTTPS 来源链接')
+    z.string().parse(url)
+    const known = store.researches().some((r) => r.periods.some((p) => p.evidence.some((e) => e.url === url)))
+    if (!known || !sourceAllowed(url, 'global'))
+      throw new Error('只允许打开已保存的网页来源链接')
     await shell.openExternal(url)
   })
-  handle('research:export', async (id) => {
+  handle('research:export', async (id, rawFormat) => {
     const r = getResearch(z.string().uuid().parse(id))
+    const format = z.enum(['markdown', 'json']).default('markdown').parse(rawFormat)
+    const markdown = format === 'markdown'
     const result = await dialog.showSaveDialog(window!, {
-      defaultPath: '观点研究.json',
-      filters: [{ name: '研究数据 JSON', extensions: ['json'] }],
+      defaultPath: markdown ? '观点变化研究报告.md' : '观点研究数据.json',
+      filters: [
+        markdown
+          ? { name: 'Markdown 研究报告', extensions: ['md'] }
+          : { name: '研究数据 JSON', extensions: ['json'] },
+      ],
     })
     if (result.canceled || !result.filePath) return false
-    await writeFile(result.filePath, JSON.stringify(r, null, 2), 'utf8')
+    await writeFile(
+      result.filePath,
+      markdown ? researchToMarkdown(r) : JSON.stringify(r, null, 2),
+      'utf8',
+    )
     return true
   })
 }

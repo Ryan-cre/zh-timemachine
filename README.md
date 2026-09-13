@@ -18,6 +18,10 @@
 
 这里的“主要观点”来自检索到的样本，不代表知乎全站。
 
+## 如何使用
+
+在设置中选择知乎搜索或全网搜索，填写知乎开放平台凭证、添加模型供应商，即可开始研究。应用在本地运行和保存数据，直接调用搜索与 LLM API，无需云端部署。切换搜索来源仅影响新研究。
+
 ## 开发
 
 Electron · React · TypeScript · AI SDK · Recharts · SQLite
@@ -29,7 +33,9 @@ npm ci
 npm run dev
 ```
 
-在“模型与连接”中填写凭证，即可新建研究。支持取消、继续分析和导出研究数据。更多说明见 [开发环境](docs/DEVELOPMENT.md)。
+在“模型与连接”中填写凭证，即可新建研究。支持取消、断点继续、导出 Markdown 报告和 JSON 研究数据。更多说明见 [开发环境](docs/DEVELOPMENT.md)。
+
+Windows 便携版由仓库的 **Build Windows EXE** 工作流生成。打开对应的 Actions 运行记录，在 Artifacts 中下载 `ZH-Timemachine-windows-x64`，压缩包内包含 EXE 和 SHA-256 校验文件。
 
 ---
 

@@ -1,0 +1,61 @@
+name: Build Windows EXE
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - design/competition-3d
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-exe-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Windows x64 portable
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Use Node.js 24
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm test
+
+      - name: Build portable EXE
+        run: npm run dist:win
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+
+      - name: Create checksum
+        shell: pwsh
+        run: |
+          $exe = Get-ChildItem -LiteralPath release -Filter '*.exe' -File
+          if ($exe.Count -ne 1) {
+            throw "Expected one EXE in release, found $($exe.Count)."
+          }
+          $hash = Get-FileHash -Algorithm SHA256 -LiteralPath $exe.FullName
+          "$($hash.Hash.ToLower())  $($exe.Name)" | Set-Content -Encoding ascii -LiteralPath release/SHA256SUMS.txt
+
+      - name: Upload Windows package
+        uses: actions/upload-artifact@v7
+        with:
+          name: ZH-Timemachine-windows-x64
+          path: |
+            release/*.exe
+            release/SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 14
