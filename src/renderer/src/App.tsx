@@ -3,7 +3,7 @@ import { Slot } from '@radix-ui/react-slot'
 import { cva } from 'class-variance-authority'
 import { clsx } from 'clsx'
 import { twMerge } from 'tailwind-merge'
-import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import {
   ArrowLeft,
   ArrowRight,
@@ -28,6 +28,10 @@ import {
   X,
   Cable,
   Orbit,
+  Box,
+  MousePointer2,
+  Maximize2,
+  Radio,
 } from 'lucide-react'
 import {
   BarChart,
@@ -46,6 +50,8 @@ import type {
   ResearchInput,
 } from '../../shared/types'
 import { makePeriods } from '../../shared/logic'
+
+const TimeGalaxy3D = lazy(() => import('./TimeGalaxy3D'))
 
 const api = window.desktop
 const COLORS = [
@@ -107,6 +113,27 @@ export default function App() {
     [opinionFilter, setOpinionFilter] = useState('')
   const [providerForm, setProviderForm] = useState<ProviderInput | null>(null),
     [zhihuKey, setZhihuKey] = useState('')
+  const [immersive3D, setImmersive3D] = useState(false)
+  const [visualMode, setVisualMode] = useState<'2d' | '3d'>(() => {
+    try {
+      return localStorage.getItem('zh-timemachine-visual-mode') === '2d' ? '2d' : '3d'
+    } catch {
+      return '3d'
+    }
+  })
+  const chooseVisualMode = (mode: '2d' | '3d') => {
+    setVisualMode(mode)
+    try {
+      localStorage.setItem('zh-timemachine-visual-mode', mode)
+    } catch {
+      // The visual preference is optional when storage is unavailable.
+    }
+  }
+  const handle3DUnavailable = useCallback(() => {
+    setVisualMode('2d')
+    setImmersive3D(false)
+    setNotice('当前设备无法启用 WebGL，已自动切换到轻量 2D 模式。')
+  }, [])
   const refresh = async () => {
     try {
       setState(await api.state())
@@ -348,40 +375,86 @@ export default function App() {
                     <span><ShieldCheck size={14} /> 来源可回溯</span>
                     <span><Activity size={14} /> 变化可量化</span>
                   </div>
+                  <button
+                    className="launch-galaxy"
+                    type="button"
+                    onClick={() => {
+                      chooseVisualMode('3d')
+                      setImmersive3D(true)
+                    }}
+                  >
+                    <span><Radio size={13} /> LIVE 3D EXPERIENCE</span>
+                    进入沉浸式时间宇宙
+                    <Maximize2 size={15} />
+                  </button>
                 </div>
-                <div className="time-window" aria-hidden="true">
+                <div className={`time-window ${visualMode === '3d' ? 'is-3d' : ''}`}>
                   <div className="time-window-head">
                     <span>TIME SIGNAL</span>
                     <i />
                     <small>概念示意 · 非研究数据</small>
+                    <div className="visual-mode-switch" role="group" aria-label="视觉模式">
+                      <button
+                        className={visualMode === '2d' ? 'active' : ''}
+                        type="button"
+                        onClick={() => chooseVisualMode('2d')}
+                        aria-pressed={visualMode === '2d'}
+                      >
+                        2D
+                      </button>
+                      <button
+                        className={visualMode === '3d' ? 'active' : ''}
+                        type="button"
+                        onClick={() => chooseVisualMode('3d')}
+                        aria-pressed={visualMode === '3d'}
+                      >
+                        <Box size={10} /> 3D
+                      </button>
+                    </div>
                   </div>
-                  <div className="orbital-system">
-                    <span className="orbit-ring ring-one" />
-                    <span className="orbit-ring ring-two" />
-                    <span className="orbit-ring ring-three" />
-                    <span className="orbit-particle particle-one" />
-                    <span className="orbit-particle particle-two" />
-                    <span className="orbit-core">
-                      <Orbit size={28} strokeWidth={1.2} />
-                    </span>
-                  </div>
-                  <div className="signal-chart">
-                    <div className="signal-line" />
-                    {[
-                      ['2020', '问题出现', '12%'],
-                      ['2023', '观点分化', '47%'],
-                      ['2026', '共识重组', '81%'],
-                    ].map(([year, label, value], index) => (
-                      <div className={`signal-point p${index + 1}`} key={year}>
-                        <i />
-                        <span>{year}</span>
-                        <strong>{label}</strong>
-                        <small>{value}</small>
+                  {visualMode === '3d' && !immersive3D ? (
+                    <Suspense fallback={<span className="galaxy-loading">正在加载 3D 引擎…</span>}>
+                      <TimeGalaxy3D onUnavailable={handle3DUnavailable} />
+                    </Suspense>
+                  ) : visualMode === '3d' ? (
+                    <div className="galaxy-standby" aria-hidden="true">
+                      <Radio size={26} /> IMMERSIVE VIEW ACTIVE
+                    </div>
+                  ) : (
+                    <>
+                      <div className="orbital-system" aria-hidden="true">
+                        <span className="orbit-ring ring-one" />
+                        <span className="orbit-ring ring-two" />
+                        <span className="orbit-ring ring-three" />
+                        <span className="orbit-particle particle-one" />
+                        <span className="orbit-particle particle-two" />
+                        <span className="orbit-core">
+                          <Orbit size={28} strokeWidth={1.2} />
+                        </span>
                       </div>
-                    ))}
-                  </div>
+                      <div className="signal-chart" aria-hidden="true">
+                        <div className="signal-line" />
+                        {[
+                          ['2020', '问题出现', '12%'],
+                          ['2023', '观点分化', '47%'],
+                          ['2026', '共识重组', '81%'],
+                        ].map(([year, label, value], index) => (
+                          <div className={`signal-point p${index + 1}`} key={year}>
+                            <i />
+                            <span>{year}</span>
+                            <strong>{label}</strong>
+                            <small>{value}</small>
+                          </div>
+                        ))}
+                      </div>
+                    </>
+                  )}
                   <div className="time-window-foot">
-                    <span>检索</span><i /><span>归因</span><i /><span>演变</span>
+                    {visualMode === '3d' ? (
+                      <><MousePointer2 size={10} /><span>拖拽旋转</span><i /><span>滚轮缩放</span></>
+                    ) : (
+                      <><span>检索</span><i /><span>归因</span><i /><span>演变</span></>
+                    )}
                   </div>
                 </div>
               </section>
@@ -1106,6 +1179,45 @@ export default function App() {
           )}
         </div>
       </main>
+      <Dialog.Root open={immersive3D} onOpenChange={setImmersive3D}>
+        <Dialog.Portal>
+          <Dialog.Overlay className="galaxy-stage-overlay" />
+          <Dialog.Content className="galaxy-stage" aria-describedby={undefined}>
+            <Dialog.Title className="sr-only">沉浸式观点时间宇宙</Dialog.Title>
+            <div className="galaxy-stage-grid" aria-hidden="true" />
+            <div className="galaxy-stage-header">
+              <div className="stage-brand">
+                <span className="stage-brand-mark"><Orbit size={20} /></span>
+                <span><strong>ZH-TIMEMACHINE</strong><small>PERSPECTIVE OBSERVATORY</small></span>
+              </div>
+              <div className="stage-live"><i /> LIVE RENDER <span>60 FPS TARGET</span></div>
+              <Dialog.Close asChild>
+                <button className="stage-close" type="button" aria-label="退出沉浸式视图">
+                  <X size={18} /> ESC
+                </button>
+              </Dialog.Close>
+            </div>
+            <div className="galaxy-stage-copy">
+              <span>OPINION EVOLUTION / 2020—2026</span>
+              <h2>穿越观点的<br /><em>时间引力场</em></h2>
+              <p>每个发光节点代表一次叙事转折。拖拽改变观察角度，滚轮穿越时间尺度。</p>
+            </div>
+            <div className="stage-metrics" aria-hidden="true">
+              <span><small>SIGNALS</small><strong>04</strong></span>
+              <span><small>TRAJECTORY</small><strong>6.2Y</strong></span>
+              <span><small>CONFIDENCE</small><strong>81%</strong></span>
+            </div>
+            <Suspense fallback={<span className="stage-loading">正在构建沉浸宇宙…</span>}>
+              <TimeGalaxy3D immersive onUnavailable={handle3DUnavailable} />
+            </Suspense>
+            <div className="stage-instructions">
+              <span><MousePointer2 size={13} /> 拖拽旋转</span>
+              <span>SCROLL / ZOOM</span>
+              <span>选择时间节点查看信号</span>
+            </div>
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
       {notice && (
         <div className="toast" role="status">
           {notice}

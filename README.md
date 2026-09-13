@@ -15,6 +15,7 @@
 - **搜索**：按时间范围寻找相关内容。
 - **概括**：整理各阶段的主要观点，附上原文来源。
 - **回看**：用图表呈现变化，点击即可查看对应证据。
+- **探索**：进入全屏 3D 时间宇宙，拖拽旋转、滚轮缩放并选择观点节点，也可随时切回轻量 2D 模式。
 
 这里的“主要观点”来自检索到的样本，不代表知乎全站。
 
@@ -24,7 +25,7 @@
 
 ## 开发
 
-Electron · React · TypeScript · AI SDK · Recharts · SQLite
+Electron · React · TypeScript · Three.js · AI SDK · Recharts · SQLite
 
 使用 Node.js 24 LTS，在项目目录执行：
 
