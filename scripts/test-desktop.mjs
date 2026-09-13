@@ -79,6 +79,14 @@ try {
   const errors = []
   page.on('pageerror', (error) => errors.push(error.message))
   await page.getByText('开始一段研究', { exact: true }).waitFor()
+  const threeDButton = page.getByRole('button', { name: /3D/ })
+  assert.equal(await threeDButton.getAttribute('aria-pressed'), 'true')
+  await page.getByLabel('可拖拽旋转和滚轮缩放的观点时间星轨').waitFor()
+  await page.getByRole('button', { name: '2D', exact: true }).click()
+  assert.equal(await page.getByRole('button', { name: '2D', exact: true }).getAttribute('aria-pressed'), 'true')
+  assert.equal(await page.getByLabel('可拖拽旋转和滚轮缩放的观点时间星轨').count(), 0)
+  await threeDButton.click()
+  await page.getByLabel('可拖拽旋转和滚轮缩放的观点时间星轨').waitFor()
   await page.screenshot({ path: join(output, 'home.png') })
   await desktop.evaluate(({ net }) => {
     const original = net.fetch.bind(net)
