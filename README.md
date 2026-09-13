@@ -33,7 +33,7 @@ npm ci
 npm run dev
 ```
 
-在“模型与连接”中填写凭证，即可新建研究。支持取消、继续分析和导出研究数据。更多说明见 [开发环境](docs/DEVELOPMENT.md)。
+在“模型与连接”中填写凭证，即可新建研究。支持取消、断点继续、导出 Markdown 报告和 JSON 研究数据。更多说明见 [开发环境](docs/DEVELOPMENT.md)。
 
 ---
 

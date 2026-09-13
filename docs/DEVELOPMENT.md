@@ -11,7 +11,7 @@ npm ci
 npm run dev
 ```
 
-在“模型与连接”中配置知乎 Access Secret 与模型供应商。支持 DeepSeek 和 OpenAI 兼容的 Chat Completions 服务；兼容地址通常包含 `/v1`，不要填写完整的 `/chat/completions` 路径。每个配置对应一个模型，同一服务可添加多个配置。
+在“模型与连接”中配置知乎 Access Secret、搜索来源与模型供应商。支持 DeepSeek 和 OpenAI 兼容的 Chat Completions 服务；兼容地址通常包含 `/v1`，不要填写完整的 `/chat/completions` 路径。每个配置对应一个模型，同一服务可添加多个配置。
 
 Windows PowerShell 如限制 `npm.ps1`，使用 `npm.cmd`。新装 Node.js 后请重新打开终端。
 
@@ -42,7 +42,7 @@ Windows PowerShell 如限制 `npm.ps1`，使用 `npm.cmd`。新装 Node.js 后�
 
 ## 数据与分析
 
-研究记录及搜索缓存存储在 Electron `userData` 下的 `timemachine.db`，不在仓库内。凭证由系统安全存储加密；Linux 如仅提供 `basic_text` 后端，则拒绝保存凭证。研究导出为 JSON，不包含密钥。
+研究记录、搜索缓存与限流冷却状态存储在 Electron `userData` 下的 `timemachine.db`，不在仓库内。凭证由系统安全存储加密；Linux 如仅提供 `basic_text` 后端，则拒绝保存凭证。研究可导出为便于分享的 Markdown 报告或完整 JSON 数据，均不包含密钥。
 
 按北京时间分段，最多 24 个阶段、72 次搜索。每次返回最多 10 条摘要，缓存保留一小时。搜索数量包含缓存命中；模型用量记录成功返回的请求，不保证覆盖供应商对失败重试的计费。
 

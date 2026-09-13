@@ -8,6 +8,7 @@ import * as store from './store'
 import { makePeriods, sourceAllowed, validateBaseURL } from '../shared/logic'
 import { search, ask } from './adapters'
 import { runResearch } from './research'
+import { researchToMarkdown } from '../shared/report'
 import type { Research, ResearchInput } from '../shared/types'
 
 app.setName('ZH-Timemachine')
@@ -177,14 +178,24 @@ function wire() {
       throw new Error('只允许打开已保存的网页来源链接')
     await shell.openExternal(url)
   })
-  handle('research:export', async (id) => {
+  handle('research:export', async (id, rawFormat) => {
     const r = getResearch(z.string().uuid().parse(id))
+    const format = z.enum(['markdown', 'json']).default('markdown').parse(rawFormat)
+    const markdown = format === 'markdown'
     const result = await dialog.showSaveDialog(window!, {
-      defaultPath: '观点研究.json',
-      filters: [{ name: '研究数据 JSON', extensions: ['json'] }],
+      defaultPath: markdown ? '观点变化研究报告.md' : '观点研究数据.json',
+      filters: [
+        markdown
+          ? { name: 'Markdown 研究报告', extensions: ['md'] }
+          : { name: '研究数据 JSON', extensions: ['json'] },
+      ],
     })
     if (result.canceled || !result.filePath) return false
-    await writeFile(result.filePath, JSON.stringify(r, null, 2), 'utf8')
+    await writeFile(
+      result.filePath,
+      markdown ? researchToMarkdown(r) : JSON.stringify(r, null, 2),
+      'utf8',
+    )
     return true
   })
 }

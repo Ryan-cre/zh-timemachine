@@ -769,13 +769,25 @@ export default function App() {
                     disabled={busy}
                     onClick={() =>
                       void action(async () => {
-                        if (await api.exportResearch(research.id))
-                          setNotice('研究数据已导出')
+                        if (await api.exportResearch(research.id, 'markdown'))
+                          setNotice('Markdown 研究报告已导出')
                       })
                     }
                   >
                     <Download size={15} />
-                    导出
+                    导出报告
+                  </Button>
+                  <Button
+                    disabled={busy}
+                    onClick={() =>
+                      void action(async () => {
+                        if (await api.exportResearch(research.id, 'json'))
+                          setNotice('JSON 研究数据已导出')
+                      })
+                    }
+                  >
+                    <Database size={15} />
+                    JSON
                   </Button>
                   {research.status === 'running' ? (
                     <Button

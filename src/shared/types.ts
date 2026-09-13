@@ -87,6 +87,6 @@ export interface DesktopAPI {
   cancel(id: string): Promise<void>
   remove(id: string): Promise<void>
   openSource(url: string): Promise<void>
-  exportResearch(id: string): Promise<boolean>
+  exportResearch(id: string, format?: 'markdown' | 'json'): Promise<boolean>
   onChanged(callback: () => void): () => void
 }
