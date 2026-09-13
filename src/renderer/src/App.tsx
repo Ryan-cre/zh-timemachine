@@ -8,6 +8,7 @@ import {
   ArrowLeft,
   ArrowRight,
   ArrowUpRight,
+  Activity,
   BookOpen,
   Check,
   ChevronRight,
@@ -20,6 +21,7 @@ import {
   LoaderCircle,
   Plus,
   Search,
+  ShieldCheck,
   Settings2,
   Sparkles,
   Trash2,
@@ -239,6 +241,10 @@ export default function App() {
             ZH-Timemachine<small>让观点，留下时间的刻度</small>
           </span>
         </button>
+        <div className="competition-tag">
+          <span>知乎黑客松</span>
+          <strong>2026 · ENTRY</strong>
+        </div>
         <Button
           kind="primary new-research"
           onClick={() => {
@@ -324,26 +330,83 @@ export default function App() {
           {page === 'home' && (
             <>
               <section className="hero">
-                <IconLabel>
-                  <Sparkles size={14} /> A PERSPECTIVE THROUGH TIME
-                </IconLabel>
-                <h1>
-                  同一个问题，
-                  <br />
-                  <span>时间会给出不同的答案。</span>
-                </h1>
-                <p>从知乎的讨论中，寻找观点的来路与转折。</p>
-                <div className="hero-orbit">
-                  <Orbit size={155} strokeWidth={0.7} />
-                  <span>过去 · 当下 · 变化</span>
+                <div className="hero-copy">
+                  <IconLabel>
+                    <Sparkles size={14} /> PERSPECTIVE INTELLIGENCE
+                  </IconLabel>
+                  <h1>
+                    看见观点，
+                    <br />
+                    <span>如何被时间改变。</span>
+                  </h1>
+                  <p>
+                    从知乎的讨论中提取证据、梳理语境，
+                    <br />
+                    让每一次立场转折都有迹可循。
+                  </p>
+                  <div className="hero-proof">
+                    <span><ShieldCheck size={14} /> 来源可回溯</span>
+                    <span><Activity size={14} /> 变化可量化</span>
+                  </div>
                 </div>
+                <div className="time-window" aria-hidden="true">
+                  <div className="time-window-head">
+                    <span>TIME SIGNAL</span>
+                    <i />
+                    <small>概念示意 · 非研究数据</small>
+                  </div>
+                  <div className="orbital-system">
+                    <span className="orbit-ring ring-one" />
+                    <span className="orbit-ring ring-two" />
+                    <span className="orbit-ring ring-three" />
+                    <span className="orbit-particle particle-one" />
+                    <span className="orbit-particle particle-two" />
+                    <span className="orbit-core">
+                      <Orbit size={28} strokeWidth={1.2} />
+                    </span>
+                  </div>
+                  <div className="signal-chart">
+                    <div className="signal-line" />
+                    {[
+                      ['2020', '问题出现', '12%'],
+                      ['2023', '观点分化', '47%'],
+                      ['2026', '共识重组', '81%'],
+                    ].map(([year, label, value], index) => (
+                      <div className={`signal-point p${index + 1}`} key={year}>
+                        <i />
+                        <span>{year}</span>
+                        <strong>{label}</strong>
+                        <small>{value}</small>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="time-window-foot">
+                    <span>检索</span><i /><span>归因</span><i /><span>演变</span>
+                  </div>
+                </div>
+              </section>
+              <section className="method-strip" aria-label="研究方法">
+                {[
+                  ['01', 'SEARCH', '跨时间检索', '找到关键讨论与原始证据'],
+                  ['02', 'SYNTHESIZE', '观点聚类', '提炼立场、共识与分歧'],
+                  ['03', 'TRACE', '变化溯源', '解释拐点为何发生'],
+                ].map(([step, code, title, copy]) => (
+                  <div className="method-step" key={step}>
+                    <span>{step}</span>
+                    <div>
+                      <small>{code}</small>
+                      <strong>{title}</strong>
+                      <p>{copy}</p>
+                    </div>
+                  </div>
+                ))}
               </section>
               <form className="research-form panel" onSubmit={start}>
                 <div className="panel-heading">
                   <span>
                     <Search size={18} /> 开始一段研究
                   </span>
-                  <span className="subtle">01 / 提出问题</span>
+                  <span className="subtle">01 / DEFINE THE QUESTION</span>
                 </div>
                 <label className="question-label" htmlFor="question">
                   你想观察什么？
@@ -471,7 +534,7 @@ export default function App() {
                 )}
               </form>
               <section className="suggestions">
-                <IconLabel>从一个熟悉的问题开始</IconLabel>
+                <IconLabel>DEMO-READY QUESTIONS · 从一个熟悉的问题开始</IconLabel>
                 <div className="suggestion-grid">
                   {[
                     'NiKo 能否夺得 Major',
@@ -810,6 +873,29 @@ export default function App() {
                             }
                           }}
                         >
+                          <defs>
+                            {labels.map((label, i) => (
+                              <linearGradient
+                                id={`opinion-gradient-${i}`}
+                                x1="0"
+                                y1="0"
+                                x2="0"
+                                y2="1"
+                                key={label}
+                              >
+                                <stop
+                                  offset="0%"
+                                  stopColor={COLORS[i % COLORS.length]}
+                                  stopOpacity={1}
+                                />
+                                <stop
+                                  offset="100%"
+                                  stopColor={COLORS[i % COLORS.length]}
+                                  stopOpacity={0.72}
+                                />
+                              </linearGradient>
+                            ))}
+                          </defs>
                           <CartesianGrid vertical={false} stroke="#eeedf4" />
                           <XAxis
                             dataKey="name"
@@ -842,7 +928,7 @@ export default function App() {
                               name={label}
                               stackId="opinion"
                               isAnimationActive={false}
-                              fill={COLORS[i % COLORS.length]}
+                              fill={`url(#opinion-gradient-${i})`}
                               maxBarSize={56}
                             />
                           ))}
