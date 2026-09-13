@@ -35,6 +35,8 @@ npm run dev
 
 在“模型与连接”中填写凭证，即可新建研究。支持取消、断点继续、导出 Markdown 报告和 JSON 研究数据。更多说明见 [开发环境](docs/DEVELOPMENT.md)。
 
+Windows 便携版由仓库的 **Build Windows EXE** 工作流生成。打开对应的 Actions 运行记录，在 Artifacts 中下载 `ZH-Timemachine-windows-x64`，压缩包内包含 EXE 和 SHA-256 校验文件。
+
 ---
 
 2026 知乎黑客松参赛项目 · [MIT License](LICENSE)
