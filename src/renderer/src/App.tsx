@@ -3,7 +3,7 @@ import { Slot } from '@radix-ui/react-slot'
 import { cva } from 'class-variance-authority'
 import { clsx } from 'clsx'
 import { twMerge } from 'tailwind-merge'
-import { lazy, Suspense, useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState, type CSSProperties, type FormEvent, type ReactNode } from 'react'
 import {
   ArrowLeft,
   ArrowRight,
@@ -52,6 +52,7 @@ import type {
 import { makePeriods } from '../../shared/logic'
 
 const TimeGalaxy3D = lazy(() => import('./TimeGalaxy3D'))
+import { GATE_GALAXY } from './gateGalaxy'
 import type { GalaxyData } from './TimeGalaxy3D'
 
 const api = window.desktop
@@ -105,7 +106,7 @@ function Button({
 
 export default function App() {
   const [state, setState] = useState<AppState>(),
-    [page, setPage] = useState('home'),
+    [page, setPage] = useState<'gate' | 'home' | 'research' | 'history' | 'settings'>('gate'),
     [selected, setSelected] = useState(''),
     [notice, setNotice] = useState(''),
     [busy, setBusy] = useState(false)
@@ -322,6 +323,65 @@ export default function App() {
     }
   })
   const period = research?.periods[periodIndex]
+
+  // 启动落地页：打开应用第一眼即是可交互的真实星图
+  if (page === 'gate') {
+    return (
+      <div className="gate">
+        <div className="gate-canvas">
+          <Suspense fallback={<span className="stage-loading">正在构建时间宇宙…</span>}>
+            <TimeGalaxy3D immersive data={GATE_GALAXY} onUnavailable={() => setPage('home')} />
+          </Suspense>
+        </div>
+        <header className="gate-topbar">
+          <div className="gate-brand">
+            <span className="gate-brand-mark"><Orbit size={20} /></span>
+            <span><strong>ZH-TIMEMACHINE</strong><small>PERSPECTIVE OBSERVATORY</small></span>
+          </div>
+          <div className="gate-live"><i /> LIVE RENDER</div>
+        </header>
+
+        <div className="gate-center">
+          <IconLabel><Sparkles size={14} /> 知乎黑客松 2026 · 时间机</IconLabel>
+          <h1 className="gate-title">看见观点，<br /><em>如何被时间改变</em></h1>
+          <p className="gate-sub">
+            把一个问题铺在时间轴上 —— 从 {GATE_GALAXY.periods[0]?.label} 到{' '}
+            {GATE_GALAXY.periods[GATE_GALAXY.periods.length - 1]?.label}，
+            {GATE_GALAXY.totalSamples} 条真实知乎回答，聚成一张可旋转的立场星图。
+          </p>
+          <button type="button" className="gate-cta" onClick={() => setPage('home')}>
+            <span className="gate-cta-ring" />
+            <span className="gate-cta-text">点击此处开始探索</span>
+            <ArrowRight size={18} />
+          </button>
+          <div className="gate-hint">
+            <MousePointer2 size={13} /> 拖拽旋转 · 滚轮缩放 · 点击年份节点
+          </div>
+        </div>
+
+        <div className="gate-foot">
+          <span><strong>{GATE_GALAXY.totalSamples}</strong> 条真实回答</span>
+          <i />
+          <span><strong>{GATE_GALAXY.periods.length}</strong> 个年份</span>
+          <i />
+          <span>来源 <strong>ZHIHU</strong></span>
+        </div>
+      </div>
+    )
+  }
+
+  // 当年中心观点：已归类立场中样本量最大的一个，颜色与 2D/3D 立场配色一致
+  const dominant =
+    period && period.status === 'done'
+      ? period.opinions
+          .filter((o) => o.label !== '未归类' && o.evidenceIds.length > 0)
+          .map((o) => ({ ...o, color: COLORS[labels.indexOf(o.label) % COLORS.length] }))
+          .sort((a, b) => b.evidenceIds.length - a.evidenceIds.length)[0] ?? null
+      : null
+  const dominantShare =
+    dominant && period && period.evidence.length
+      ? Math.round((dominant.evidenceIds.length / period.evidence.length) * 100)
+      : 0
   return (
     <div className="app-shell">
       <aside className="sidebar">
@@ -1183,6 +1243,24 @@ export default function App() {
               </div>
               {period && (
                 <div className="detail-grid" id="period-detail">
+                  {dominant && (
+                    <section
+                      className="panel dominant-focus full-span"
+                      style={{ '--focus': dominant.color } as CSSProperties}
+                    >
+                      <div className="dominant-top">
+                        <span className="dominant-flag">{period?.label} 中心观点</span>
+                        <span className="dominant-count">
+                          {dominant.evidenceIds.length}/{period?.evidence.length} 条 · 占 {dominantShare}%
+                        </span>
+                      </div>
+                      <h3 className="dominant-title">{dominant.label}</h3>
+                      <p className="dominant-summary">{dominant.summary}</p>
+                      <span className="dominant-track">
+                        <span className="dominant-bar" style={{ width: `${dominantShare}%` }} />
+                      </span>
+                    </section>
+                  )}
                   <section className="panel period-analysis">
                     <IconLabel>{period.label} / 阶段观点</IconLabel>
                     <h2>这一时期，人们怎么看？</h2>
