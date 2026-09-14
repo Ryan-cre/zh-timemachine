@@ -2,17 +2,42 @@ import { useEffect, useRef, useState } from 'react'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 
+// 研究数据星图：每个研究问题生成一张专属星图。
+// 节点=观察时间段，颜色=该期主导立场（与2D堆叠图同配色），
+// 大小=样本量；无样本年份渲染为暗星，对应“零样本如实留白”。
+export type GalaxyPeriod = {
+  label: string
+  sampleCount: number
+  dominantLabel: string
+  dominantShare: number
+  summary: string
+}
+export type GalaxyData = {
+  question: string
+  totalSamples: number
+  periods: GalaxyPeriod[]
+  colors: Record<string, string>
+}
+
 type TimeGalaxy3DProps = {
   immersive?: boolean
   onUnavailable: () => void
+  data?: GalaxyData | null
+  onSelectPeriod?: (index: number) => void
 }
 
-const TIMELINE = [
-  { year: '2020', label: '问题出现', value: '12%', detail: '早期信号进入讨论场', color: '#8178ff' },
-  { year: '2022', label: '讨论扩散', value: '34%', detail: '关键叙事开始聚集', color: '#5e9dff' },
-  { year: '2024', label: '观点分化', value: '57%', detail: '立场形成明显分叉', color: '#42c6ef' },
-  { year: '2026', label: '共识重组', value: '81%', detail: '新证据改变主流判断', color: '#64eadb' },
-]
+// 无研究数据时（首页概念区）使用的示意时间线，卡片明确标注非研究数据。
+const FALLBACK = {
+  question: '',
+  totalSamples: 0,
+  colors: {} as Record<string, string>,
+  periods: [
+    { label: '2020', sampleCount: 0, dominantLabel: '问题出现', dominantShare: 0, summary: '早期信号进入讨论场' },
+    { label: '2022', sampleCount: 0, dominantLabel: '讨论扩散', dominantShare: 0, summary: '关键叙事开始聚集' },
+    { label: '2024', sampleCount: 0, dominantLabel: '观点分化', dominantShare: 0, summary: '立场形成明显分叉' },
+    { label: '2026', sampleCount: 0, dominantLabel: '共识重组', dominantShare: 0, summary: '新证据改变主流判断' },
+  ],
+}
 
 function seededRandom(seed: number) {
   let value = seed >>> 0
@@ -40,15 +65,24 @@ function glowTexture() {
   return texture
 }
 
-export default function TimeGalaxy3D({ immersive = false, onUnavailable }: TimeGalaxy3DProps) {
+export default function TimeGalaxy3D({ immersive = false, onUnavailable, data, onSelectPeriod }: TimeGalaxy3DProps) {
+  const galaxy = data && data.periods.length ? data : FALLBACK
+  const isLive = Boolean(data && data.periods.length)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [ready, setReady] = useState(false)
-  const [activeIndex, setActiveIndex] = useState(TIMELINE.length - 1)
-  const activeIndexRef = useRef(TIMELINE.length - 1)
+  const [activeIndex, setActiveIndex] = useState(galaxy.periods.length - 1)
+  const activeIndexRef = useRef(galaxy.periods.length - 1)
   const selectEvent = (index: number) => {
     activeIndexRef.current = index
     setActiveIndex(index)
   }
+  // 切换研究后重置选中节点
+  useEffect(() => {
+    const last = galaxy.periods.length - 1
+    activeIndexRef.current = last
+    setActiveIndex(last)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [galaxy.question, galaxy.periods.length])
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -67,6 +101,7 @@ export default function TimeGalaxy3D({ immersive = false, onUnavailable }: TimeG
       return
     }
 
+    const events = galaxy.periods
     const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
     const scene = new THREE.Scene()
     scene.fog = new THREE.FogExp2(0x071024, immersive ? 0.038 : 0.072)
@@ -179,19 +214,45 @@ export default function TimeGalaxy3D({ immersive = false, onUnavailable }: TimeG
     )
     universe.add(path)
 
+    // 颜色：研究模式取主导立场的 2D 同配色；无数据/无立场用青色梯度
+    const palette = ['#8178ff', '#5e9dff', '#42c6ef', '#64eadb']
+    const eventColor = (event: GalaxyPeriod, index: number) => {
+      if (isLive && event.sampleCount > 0) {
+        const mapped = galaxy.colors[event.dominantLabel]
+        if (mapped) return mapped
+      }
+      return palette[Math.min(index, palette.length - 1)]
+    }
+    // 大小：样本量驱动（平方根压缩，避免末年吞掉其他节点）
+    const maxSamples = Math.max(1, ...events.map((e) => e.sampleCount))
+    const nodeRadius = (event: GalaxyPeriod, index: number, last: boolean) => {
+      const base = (last ? 0.17 : 0.125) * (immersive ? 1.28 : 1)
+      if (!isLive) return base
+      if (!event.sampleCount) return 0.062 * (immersive ? 1.28 : 1)
+      return Math.max(0.09, 0.1 + Math.sqrt(event.sampleCount / maxSamples) * 0.12) * (immersive ? 1.28 : 1)
+    }
+
     const nodeMeshes: THREE.Mesh[] = []
-    TIMELINE.forEach((event, index) => {
-      const point = curve.getPoint(index / (TIMELINE.length - 1))
-      const node = new THREE.Mesh(
-        new THREE.SphereGeometry((index === TIMELINE.length - 1 ? 0.18 : 0.135) * (immersive ? 1.28 : 1), 28, 28),
-        new THREE.MeshPhysicalMaterial({
-          color: event.color,
-          emissive: new THREE.Color(event.color),
-          emissiveIntensity: index === TIMELINE.length - 1 ? 2.6 : 1.55,
-          roughness: 0.14,
-          clearcoat: 1,
-        }),
-      )
+    events.forEach((event, index) => {
+      const point = curve.getPoint(events.length === 1 ? 0.5 : index / (events.length - 1))
+      const color = eventColor(event, index)
+      const empty = isLive && event.sampleCount === 0
+      const radius = nodeRadius(event, index, index === events.length - 1)
+      // 研究模式用 MeshBasicMaterial：节点颜色=立场色，不受场景彩色灯光冲淡
+      const nodeMaterial: THREE.Material = isLive
+        ? new THREE.MeshBasicMaterial({
+            color: empty ? 0x3a4566 : new THREE.Color(color),
+            transparent: empty,
+            opacity: empty ? 0.55 : 1,
+          })
+        : new THREE.MeshPhysicalMaterial({
+            color: new THREE.Color(color),
+            emissive: new THREE.Color(color),
+            emissiveIntensity: index === events.length - 1 ? 2.6 : 1.55,
+            roughness: 0.14,
+            clearcoat: 1,
+          })
+      const node = new THREE.Mesh(new THREE.SphereGeometry(radius, 28, 28), nodeMaterial)
       node.position.copy(point)
       node.userData.phase = index * 0.9
       node.userData.baseScale = 1
@@ -199,21 +260,24 @@ export default function TimeGalaxy3D({ immersive = false, onUnavailable }: TimeG
       nodeMeshes.push(node)
       universe.add(node)
 
-      const halo = new THREE.Sprite(
-        new THREE.SpriteMaterial({
-          map: glowMap,
-          color: event.color,
-          transparent: true,
-          opacity: 0.5,
-          depthWrite: false,
-          blending: THREE.AdditiveBlending,
-        }),
-      )
-      halo.position.copy(point)
-      halo.scale.setScalar(immersive ? 1.25 : 0.82)
-      halo.userData.phase = index * 0.9
-      halo.userData.baseScale = immersive ? 1.25 : 0.82
-      universe.add(halo)
+      if (!empty) {
+        const halo = new THREE.Sprite(
+          new THREE.SpriteMaterial({
+            map: glowMap,
+            color: new THREE.Color(color),
+            transparent: true,
+            opacity: 0.5,
+            depthWrite: false,
+            blending: THREE.AdditiveBlending,
+          }),
+        )
+        halo.position.copy(point)
+        const haloScale = (immersive ? 1.25 : 0.82) * (radius / 0.135)
+        halo.scale.setScalar(haloScale)
+        halo.userData.phase = index * 0.9
+        halo.userData.baseScale = haloScale
+        universe.add(halo)
+      }
     })
 
     const flowParticles: THREE.Mesh[] = []
@@ -308,7 +372,14 @@ export default function TimeGalaxy3D({ immersive = false, onUnavailable }: TimeG
         if (hoveredIndex >= 0) selectEvent(hoveredIndex)
       }
     }
+    // 研究模式：点击节点跳到对应年份的证据视图
+    const pointerClick = () => {
+      if (hoveredIndex < 0) return
+      selectEvent(hoveredIndex)
+      onSelectPeriod?.(hoveredIndex)
+    }
     canvas.addEventListener('pointermove', pointerMove)
+    if (isLive) canvas.addEventListener('click', pointerClick)
 
     const clock = new THREE.Clock()
     let frame = 0
@@ -353,7 +424,15 @@ export default function TimeGalaxy3D({ immersive = false, onUnavailable }: TimeG
       })
       nodeMeshes.forEach((node, index) => {
         const material = node.material as THREE.MeshPhysicalMaterial
-        material.emissiveIntensity = index === activeIndexRef.current ? 3.4 : index === hoveredIndex ? 2.8 : 1.55
+        if (!('emissiveIntensity' in material)) return
+        const empty = isLive && events[index].sampleCount === 0
+        material.emissiveIntensity = empty
+          ? 0.25
+          : index === activeIndexRef.current
+            ? 3.4
+            : index === hoveredIndex
+              ? 2.8
+              : 1.55
       })
       controls.update()
       renderer.render(scene, camera)
@@ -372,6 +451,7 @@ export default function TimeGalaxy3D({ immersive = false, onUnavailable }: TimeG
       cancelAnimationFrame(frame)
       observer.disconnect()
       canvas.removeEventListener('pointermove', pointerMove)
+      canvas.removeEventListener('click', pointerClick)
       canvas.removeEventListener('webglcontextlost', contextLost)
       controls.dispose()
       scene.traverse((object) => {
@@ -383,29 +463,42 @@ export default function TimeGalaxy3D({ immersive = false, onUnavailable }: TimeG
       glowMap.dispose()
       renderer.dispose()
     }
-  }, [immersive, onUnavailable])
+  }, [immersive, onUnavailable, isLive, galaxy, onSelectPeriod])
 
-  const active = TIMELINE[activeIndex]
+  const active = galaxy.periods[activeIndex]
+  const activeEmpty = isLive && active && active.sampleCount === 0
   return (
-    <div className={`time-galaxy ${immersive ? 'immersive' : ''} ${ready ? 'is-ready' : ''}`}>
-      <canvas ref={canvasRef} aria-label="可拖拽旋转和滚轮缩放的动态观点时间宇宙" />
+    <div className={`time-galaxy ${immersive ? 'immersive' : ''} ${ready ? 'is-ready' : ''} ${isLive ? 'is-live' : ''}`}>
+      <canvas ref={canvasRef} aria-label={isLive ? '每个节点代表一个时间段，点击可查看该期观点与证据' : '可拖拽旋转和滚轮缩放的动态观点时间宇宙'} />
       <div className="galaxy-scan" aria-hidden="true" />
       <div className="galaxy-event-card" aria-live="polite">
-        <span>{active.year} / SIGNAL {String(activeIndex + 1).padStart(2, '0')}</span>
-        <strong>{active.label}</strong>
-        <small>{active.detail}</small>
-        <b>{active.value}</b>
+        <span>
+          {active?.label} / SIGNAL {String(activeIndex + 1).padStart(2, '0')}
+        </span>
+        <strong>{activeEmpty ? '该年份无样本' : active?.dominantLabel}</strong>
+        <small>
+          {isLive
+            ? activeEmpty
+              ? '如实留白：未检索到可分析样本'
+              : `${active?.sampleCount ?? 0} 条知乎样本`
+            : active?.summary}
+        </small>
+        {!isLive && <b>示意</b>}
+        {isLive && !activeEmpty && <b>{Math.round(active.dominantShare * 100)}%</b>}
       </div>
       <div className="galaxy-labels" aria-label="时间节点">
-        {TIMELINE.map((event, index) => (
+        {galaxy.periods.map((event, index) => (
           <button
-            className={activeIndex === index ? 'active' : ''}
-            key={event.year}
+            className={`${activeIndex === index ? 'active' : ''} ${isLive && event.sampleCount === 0 ? 'is-empty' : ''}`}
+            key={`${event.label}-${index}`}
             type="button"
-            onClick={() => selectEvent(index)}
+            onClick={() => {
+              selectEvent(index)
+              onSelectPeriod?.(index)
+            }}
           >
-            <strong>{event.year}</strong>
-            <small>{event.label}</small>
+            <strong>{event.label}</strong>
+            <small>{isLive ? (event.sampleCount === 0 ? '无样本' : `${event.sampleCount}条`) : event.dominantLabel}</small>
           </button>
         ))}
       </div>
