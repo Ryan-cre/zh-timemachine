@@ -83,14 +83,16 @@ export function cleanOpinions(
     }))
     .filter((x) => x.evidenceIds.length > 0)
 }
-export function sourceAllowed(url: string, source: 'zhihu' | 'global' = 'zhihu'): boolean {
+// 产品边界：无论“知乎搜索”还是“全网搜索”，证据只采纳知乎官方域名。
+// 全网端点仅用于扩大召回（它能召回更老年份的知乎内容），入样本前统一过滤。
+export function sourceAllowed(url: string, _source: 'zhihu' | 'global' = 'zhihu'): boolean {
   try {
     const u = new URL(url)
     return (
-      (u.protocol === 'https:' || (source === 'global' && u.protocol === 'http:')) &&
+      u.protocol === 'https:' &&
       !u.username &&
       !u.password &&
-      (source === 'global' || u.hostname === 'zhihu.com' || u.hostname.endsWith('.zhihu.com'))
+      (u.hostname === 'zhihu.com' || u.hostname.endsWith('.zhihu.com'))
     )
   } catch {
     return false
