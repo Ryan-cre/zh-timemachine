@@ -137,7 +137,7 @@ export default function TimeGalaxy3D({ immersive = false, onUnavailable, data, o
     scene.add(universe)
 
     const core = new THREE.Mesh(
-      new THREE.IcosahedronGeometry(immersive ? 0.72 : 0.58, 4),
+      new THREE.IcosahedronGeometry(immersive ? 0.44 : 0.36, 4),
       new THREE.MeshPhysicalMaterial({
         color: 0x4dded2,
         emissive: 0x155db9,
@@ -156,13 +156,60 @@ export default function TimeGalaxy3D({ immersive = false, onUnavailable, data, o
         color: 0x87fff4,
         wireframe: true,
         transparent: true,
-        opacity: 0.16,
+        opacity: 0.08,
         blending: THREE.AdditiveBlending,
       }),
     )
     universe.add(shell)
 
     const glowMap = glowTexture()
+
+    // 粒子球壳：斐波那契球面均匀撒点，构成“时间星核”的粒子化外观
+    const particleShell = (() => {
+      const COUNT = immersive ? 1800 : 1200
+      const R = immersive ? 1.14 : 0.9
+      const positions = new Float32Array(COUNT * 3)
+      const colors = new Float32Array(COUNT * 3)
+      const cA = new THREE.Color('#7df2e6')
+      const cB = new THREE.Color('#6a8dff')
+      const cC = new THREE.Color('#b9a7ff')
+      const golden = Math.PI * (3 - Math.sqrt(5))
+      for (let i = 0; i < COUNT; i += 1) {
+        const y = 1 - (i / (COUNT - 1)) * 2
+        const radius = Math.sqrt(1 - y * y)
+        const theta = golden * i
+        const jitter = 0.965 + ((i * 9301 + 49297) % 233) / 233 * 0.07
+        const rr = R * jitter
+        positions[i * 3] = Math.cos(theta) * radius * rr
+        positions[i * 3 + 1] = y * rr
+        positions[i * 3 + 2] = Math.sin(theta) * radius * rr
+        const mix = (i * 9301 + 49297) % 233 / 233
+        const c = mix < 0.55
+          ? cA.clone().lerp(cB, mix / 0.55)
+          : cB.clone().lerp(cC, (mix - 0.55) / 0.45)
+        colors[i * 3] = c.r
+        colors[i * 3 + 1] = c.g
+        colors[i * 3 + 2] = c.b
+      }
+      const geo = new THREE.BufferGeometry()
+      geo.setAttribute('position', new THREE.BufferAttribute(positions, 3))
+      geo.setAttribute('color', new THREE.BufferAttribute(colors, 3))
+      const mat = new THREE.PointsMaterial({
+        size: immersive ? 0.062 : 0.05,
+        map: glowMap,
+        vertexColors: true,
+        transparent: true,
+        opacity: 0.95,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+        sizeAttenuation: true,
+      })
+      const points = new THREE.Points(geo, mat)
+      points.userData.spin = 0.06
+      return points
+    })()
+    universe.add(particleShell)
+
     const aura = new THREE.Sprite(
       new THREE.SpriteMaterial({
         map: glowMap,
@@ -238,21 +285,18 @@ export default function TimeGalaxy3D({ immersive = false, onUnavailable, data, o
       const color = eventColor(event, index)
       const empty = isLive && event.sampleCount === 0
       const radius = nodeRadius(event, index, index === events.length - 1)
-      // 研究模式用 MeshBasicMaterial：节点颜色=立场色，不受场景彩色灯光冲淡
-      const nodeMaterial: THREE.Material = isLive
-        ? new THREE.MeshBasicMaterial({
-            color: empty ? 0x3a4566 : new THREE.Color(color),
-            transparent: empty,
-            opacity: empty ? 0.55 : 1,
-          })
-        : new THREE.MeshPhysicalMaterial({
-            color: new THREE.Color(color),
-            emissive: new THREE.Color(color),
-            emissiveIntensity: index === events.length - 1 ? 2.6 : 1.55,
-            roughness: 0.14,
-            clearcoat: 1,
-          })
-      const node = new THREE.Mesh(new THREE.SphereGeometry(radius, 28, 28), nodeMaterial)
+      const node = new THREE.Mesh(
+        new THREE.SphereGeometry(radius, 28, 28),
+        new THREE.MeshPhysicalMaterial({
+          color: empty ? 0x3a4566 : new THREE.Color(color),
+          emissive: empty ? 0x141b30 : new THREE.Color(color),
+          emissiveIntensity: empty ? 0.25 : index === events.length - 1 ? 2.6 : 1.55,
+          roughness: 0.35,
+          clearcoat: empty ? 0.2 : 1,
+          transparent: empty,
+          opacity: empty ? 0.55 : 1,
+        }),
+      )
       node.position.copy(point)
       node.userData.phase = index * 0.9
       node.userData.baseScale = 1
@@ -406,6 +450,10 @@ export default function TimeGalaxy3D({ immersive = false, onUnavailable, data, o
         core.rotation.x = elapsed * 0.15
         shell.rotation.y = -elapsed * 0.16
         shell.rotation.z = elapsed * 0.1
+        particleShell.rotation.y = elapsed * 0.07
+        particleShell.rotation.x = Math.sin(elapsed * 0.12) * 0.12
+        ;(particleShell.material as THREE.PointsMaterial).opacity =
+          0.78 + Math.sin(elapsed * 1.1) * 0.17
         stars.rotation.y = elapsed * 0.006
         dust.rotation.y = -elapsed * 0.018
         universe.children.forEach((child) => {
@@ -424,7 +472,6 @@ export default function TimeGalaxy3D({ immersive = false, onUnavailable, data, o
       })
       nodeMeshes.forEach((node, index) => {
         const material = node.material as THREE.MeshPhysicalMaterial
-        if (!('emissiveIntensity' in material)) return
         const empty = isLive && events[index].sampleCount === 0
         material.emissiveIntensity = empty
           ? 0.25
@@ -480,7 +527,7 @@ export default function TimeGalaxy3D({ immersive = false, onUnavailable, data, o
           {isLive
             ? activeEmpty
               ? '如实留白：未检索到可分析样本'
-              : `${active?.sampleCount ?? 0} 条知乎样本`
+              : `${active?.sampleCount ?? 0} 条样本 · ${active?.summary ?? ''}`
             : active?.summary}
         </small>
         {!isLive && <b>示意</b>}
