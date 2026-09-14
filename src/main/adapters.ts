@@ -38,8 +38,9 @@ export async function search(
     if (source === 'global') url.searchParams.set('Filter', `publish_time>=${from} AND publish_time<=${to}`)
     else url.searchParams.set('SortBy', `EditTime:asc:(${from},${to})`)
   }
+  // CACHE_VERSION：过滤口径变更时递增，使旧版缓存的非知乎样本自然失效。
   const cacheId = createHash('sha256')
-    .update(key + url.toString())
+    .update('v2-zhihu-only:' + key + url.toString())
     .digest('hex')
   if (useCache) {
     const cached = cacheGet(cacheId) as
@@ -126,7 +127,15 @@ export async function search(
     const result = {
       items,
       saturated: data.rawCount >= (source === 'global' ? 20 : 10),
-      warnings: source === 'global' ? [...data.warnings, '按接口发布时间筛选；来源显示的是最后编辑时间，可能不在本阶段内。'] : data.warnings,
+      warnings: [
+        ...data.warnings,
+        ...(items.length < data.items.length
+          ? [`已按知乎域名过滤，排除 ${data.items.length - items.length} 条站外结果。`]
+          : []),
+        ...(source === 'global'
+          ? ['按接口发布时间筛选；来源显示的是最后编辑时间，可能不在本阶段内。']
+          : []),
+      ],
     }
     cacheSet(cacheId, result)
     return { ...result, cached: false }
