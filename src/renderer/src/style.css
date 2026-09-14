@@ -1920,3 +1920,108 @@ label select {
 .version {
   color: #8a7b9b;
 }
+
+/* ===== 研究详情：真实数据 3D 星图 ===== */
+.chart-heading-right {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+.detail-visual-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid #e7e3f2;
+  border-radius: 8px;
+  background: #f7f6fc;
+}
+.detail-visual-switch button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 24px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 6px;
+  color: #8a8799;
+  background: transparent;
+  font: inherit;
+  font-size: 10px;
+  cursor: pointer;
+  transition: all .18s ease;
+}
+.detail-visual-switch button:hover { color: #5b537a; background: #ecebf7; }
+.detail-visual-switch button.active {
+  color: #fff;
+  background: linear-gradient(135deg, #7061db, #5b8def);
+  box-shadow: 0 4px 12px #7061db33;
+}
+.chart-galaxy-wrap {
+  position: relative;
+  height: 330px;
+  margin: 6px 0 4px;
+  border-radius: 14px;
+  overflow: hidden;
+  background: radial-gradient(120% 140% at 50% 0%, #13224d 0%, #0a1430 55%, #070d22 100%);
+}
+.chart-galaxy-wrap .time-galaxy {
+  position: absolute;
+  inset: 0;
+  height: 100%;
+  border-radius: 14px;
+}
+.galaxy-immersive-btn {
+  position: absolute;
+  right: 14px;
+  bottom: 14px;
+  z-index: 5;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 13px;
+  border: 1px solid #ffffff26;
+  border-radius: 8px;
+  color: #c9f9f4;
+  background: #0b1838cc;
+  backdrop-filter: blur(6px);
+  font: inherit;
+  font-size: 10px;
+  cursor: pointer;
+  transition: background .18s ease;
+}
+.galaxy-immersive-btn:hover { background: #16306bdd; }
+/* 数据模式星图：标签点反映样本有无 */
+.time-galaxy.is-live .galaxy-labels button.is-empty strong { color: #5d6a8c; }
+.time-galaxy.is-live .galaxy-labels button.is-empty small { color: #46527a; }
+
+/* 研究模式（7 节点）：年份标签单行排布，覆盖原 grid 两行布局 */
+.time-galaxy.is-live .galaxy-labels {
+  top: auto;
+  bottom: 7%;
+  left: 5%;
+  right: 5%;
+  display: flex;
+  flex-direction: row;
+  grid-template-columns: none;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 2px;
+  pointer-events: none;
+}
+.time-galaxy.is-live .galaxy-labels button {
+  flex: 0 0 auto;
+  padding: 4px 3px;
+  background: transparent;
+  border-color: transparent;
+  pointer-events: auto;
+}
+.time-galaxy.is-live .galaxy-labels strong { font-size: 9px; white-space: nowrap; }
+.time-galaxy.is-live .galaxy-labels small { white-space: nowrap; }
+.time-galaxy.is-live .galaxy-event-card {
+  width: 150px;
+  padding: 10px 12px;
+}
+.time-galaxy.is-live .galaxy-event-card strong { font-size: 11px; line-height: 1.4; }
+.time-galaxy.is-live .galaxy-event-card small { font-size: 8px; display: none; }
