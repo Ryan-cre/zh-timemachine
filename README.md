@@ -26,7 +26,7 @@ zh-timemachine ———— 一个帮助你查看时间洪流中问题看法变�
 
 ## 如何使用
 
-1.从 [Releases](https://github.com/Ryan-cre/zh-timemachine/releases/tag/v0.2.0) 下载 Windows 版，打开即可使用
+1.从 [Releases](https://github.com/Ryan-cre/zh-timemachine/releases/tag/v0.2.1) 下载 Windows 版，打开即可使用
 2. 在<模型与连接>中，添加知乎开放平台的 Access Secret，并添加一个模型供应商（base URL + API Key）；
 3. 回到首页输入问题，开始研究
 
