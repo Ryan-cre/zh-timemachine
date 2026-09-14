@@ -1996,32 +1996,281 @@ label select {
 .time-galaxy.is-live .galaxy-labels button.is-empty strong { color: #5d6a8c; }
 .time-galaxy.is-live .galaxy-labels button.is-empty small { color: #46527a; }
 
-/* 研究模式（7 节点）：年份标签单行排布，覆盖原 grid 两行布局 */
-.time-galaxy.is-live .galaxy-labels {
-  top: auto;
-  bottom: 7%;
-  left: 5%;
-  right: 5%;
+/* ============================================================
+   启动落地页 GATE —— 打开应用第一眼即是全屏可交互 3D 星图
+   ============================================================ */
+.gate {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  overflow: hidden;
+  background:
+    radial-gradient(120% 90% at 50% 8%, #10234a 0%, #0a1730 38%, #060d1e 72%, #040812 100%);
+  color: #eef4ff;
   display: flex;
-  flex-direction: row;
-  grid-template-columns: none;
+  flex-direction: column;
+}
+.gate-canvas {
+  position: absolute;
+  inset: 0;
+}
+.gate-canvas canvas {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+}
+.gate-topbar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
   justify-content: space-between;
-  align-items: flex-end;
-  gap: 2px;
+  padding: 26px 40px;
+  z-index: 3;
   pointer-events: none;
 }
-.time-galaxy.is-live .galaxy-labels button {
-  flex: 0 0 auto;
-  padding: 4px 3px;
-  background: transparent;
-  border-color: transparent;
+.gate-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.gate-brand-mark {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  color: #53e3d6;
+  background: rgba(83, 227, 214, 0.1);
+  border: 1px solid rgba(83, 227, 214, 0.32);
+  box-shadow: 0 0 24px -6px rgba(83, 227, 214, 0.5);
+}
+.gate-brand strong {
+  display: block;
+  font-size: 14px;
+  letter-spacing: 2px;
+}
+.gate-brand small {
+  display: block;
+  font-size: 9.5px;
+  letter-spacing: 2.6px;
+  color: #7e93b8;
+  margin-top: 2px;
+}
+.gate-live {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 10.5px;
+  letter-spacing: 2.4px;
+  color: #8fe6dd;
+}
+.gate-live i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #49e3d4;
+  box-shadow: 0 0 10px #49e3d4;
+  animation: gatePulse 1.8s ease-in-out infinite;
+}
+@keyframes gatePulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(0.75); }
+}
+.gate-center {
+  position: relative;
+  z-index: 2;
+  margin: auto;
+  text-align: center;
+  max-width: 720px;
+  padding: 0 32px;
+  /* 文案整体略上移，给星图中心让位 */
+  transform: translateY(-26px);
+  pointer-events: none;
+}
+.gate-center .eyebrow,
+.gate-center .icon-label {
   pointer-events: auto;
 }
-.time-galaxy.is-live .galaxy-labels strong { font-size: 9px; white-space: nowrap; }
-.time-galaxy.is-live .galaxy-labels small { white-space: nowrap; }
-.time-galaxy.is-live .galaxy-event-card {
-  width: 150px;
-  padding: 10px 12px;
+.gate-title {
+  font-size: clamp(38px, 5.2vw, 68px);
+  line-height: 1.12;
+  font-weight: 800;
+  margin: 22px 0 18px;
+  letter-spacing: 1px;
+  text-shadow: 0 6px 40px rgba(3, 8, 20, 0.9);
 }
-.time-galaxy.is-live .galaxy-event-card strong { font-size: 11px; line-height: 1.4; }
-.time-galaxy.is-live .galaxy-event-card small { font-size: 8px; display: none; }
+.gate-title em {
+  font-style: normal;
+  background: linear-gradient(92deg, #67e8f9 0%, #7aa7ff 52%, #b79bff 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.gate-sub {
+  font-size: clamp(14px, 1.4vw, 17px);
+  line-height: 1.85;
+  color: #b7c6e2;
+  margin: 0 auto 34px;
+  max-width: 560px;
+  text-shadow: 0 2px 18px rgba(3, 8, 20, 0.9);
+}
+.gate-cta {
+  position: relative;
+  pointer-events: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  padding: 17px 38px;
+  border: none;
+  border-radius: 999px;
+  cursor: pointer;
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: #04101f;
+  background: linear-gradient(95deg, #5eead4 0%, #6fb6ff 60%, #9d8bff 100%);
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.18),
+    0 14px 44px -10px rgba(94, 234, 212, 0.65),
+    0 8px 26px -12px rgba(124, 140, 255, 0.7);
+  transition: transform 0.25s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.25s;
+}
+.gate-cta:hover {
+  transform: translateY(-3px) scale(1.02);
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.28),
+    0 22px 60px -10px rgba(94, 234, 212, 0.8),
+    0 12px 34px -10px rgba(124, 140, 255, 0.85);
+}
+.gate-cta:active { transform: translateY(-1px) scale(0.99); }
+.gate-cta-ring {
+  position: absolute;
+  inset: -7px;
+  border-radius: 999px;
+  border: 1.5px solid rgba(110, 200, 255, 0.55);
+  animation: gateRing 2.6s ease-out infinite;
+  pointer-events: none;
+}
+@keyframes gateRing {
+  0% { transform: scale(0.96); opacity: 0.9; }
+  70% { transform: scale(1.16); opacity: 0; }
+  100% { transform: scale(1.16); opacity: 0; }
+}
+.gate-hint {
+  margin-top: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 12.5px;
+  letter-spacing: 0.6px;
+  color: #8397ba;
+}
+/* 底部数据条（不遮挡 3D 立场卡） */
+.gate-foot {
+  position: absolute;
+  left: 50%;
+  bottom: 22px;
+  transform: translateX(-50%);
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 11px 26px;
+  border-radius: 999px;
+  background: rgba(13, 24, 46, 0.5);
+  border: 1px solid rgba(126, 160, 220, 0.18);
+  backdrop-filter: blur(8px);
+  font-size: 13px;
+  color: #9db0d0;
+  pointer-events: none;
+}
+.gate-foot strong { color: #e6f0ff; font-size: 15px; }
+.gate-foot i { width: 3px; height: 3px; border-radius: 50%; background: #5a7099; }
+@media (max-width: 860px) {
+  .gate-topbar { padding: 20px 22px; }
+  .gate-center { transform: translateY(-10px); }
+  .gate-foot { bottom: 22px; padding: 9px 18px; gap: 12px; font-size: 12px; }
+}
+
+
+/* ===== 年度中心观点焦点卡 ===== */
+.dominant-focus.full-span {
+  --focus: #7061db;
+  grid-column: 1 / -1;
+  position: relative;
+  padding: 22px 28px 24px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-left: 5px solid var(--focus);
+  border-radius: 16px;
+  background:
+    radial-gradient(130% 200% at 0% 0%, color-mix(in srgb, var(--focus) 16%, transparent), transparent 55%),
+    rgba(13, 21, 38, 0.78);
+  box-shadow: 0 14px 44px -22px rgba(0, 0, 0, 0.85);
+  overflow: hidden;
+}
+.dominant-focus.full-span::after {
+  content: '';
+  position: absolute;
+  right: -60px;
+  top: -60px;
+  width: 200px;
+  height: 200px;
+  border-radius: 50%;
+  background: radial-gradient(circle, color-mix(in srgb, var(--focus) 26%, transparent), transparent 70%);
+  pointer-events: none;
+}
+.dominant-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.dominant-flag {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  color: #08101f;
+  background: var(--focus);
+  padding: 5px 13px;
+  border-radius: 999px;
+}
+.dominant-count {
+  font-size: 12.5px;
+  color: #93a3bd;
+  font-variant-numeric: tabular-nums;
+}
+.dominant-title {
+  margin: 0 0 9px;
+  font-size: 23px;
+  font-weight: 800;
+  line-height: 1.3;
+  color: var(--focus);
+  letter-spacing: 0.3px;
+}
+.dominant-summary {
+  margin: 0 0 16px;
+  color: #aebccf;
+  font-size: 13.5px;
+  line-height: 1.75;
+  max-width: 92%;
+}
+.dominant-track {
+  display: block;
+  height: 7px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+.dominant-bar {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--focus), color-mix(in srgb, var(--focus) 55%, #7fe9ff));
+  box-shadow: 0 0 14px color-mix(in srgb, var(--focus) 65%, transparent);
+  transition: width 0.7s cubic-bezier(0.22, 1, 0.36, 1);
+}
