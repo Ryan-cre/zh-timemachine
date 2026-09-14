@@ -3,7 +3,7 @@ import { Slot } from '@radix-ui/react-slot'
 import { cva } from 'class-variance-authority'
 import { clsx } from 'clsx'
 import { twMerge } from 'tailwind-merge'
-import { lazy, Suspense, useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react'
 import {
   ArrowLeft,
   ArrowRight,
@@ -52,6 +52,7 @@ import type {
 import { makePeriods } from '../../shared/logic'
 
 const TimeGalaxy3D = lazy(() => import('./TimeGalaxy3D'))
+import type { GalaxyData } from './TimeGalaxy3D'
 
 const api = window.desktop
 const COLORS = [
@@ -114,6 +115,7 @@ export default function App() {
   const [providerForm, setProviderForm] = useState<ProviderInput | null>(null),
     [zhihuKey, setZhihuKey] = useState('')
   const [immersive3D, setImmersive3D] = useState(false)
+  const [detailView, setDetailView] = useState<'2d' | '3d'>('2d')
   const [visualMode, setVisualMode] = useState<'2d' | '3d'>(() => {
     try {
       return localStorage.getItem('zh-timemachine-visual-mode') === '2d' ? '2d' : '3d'
@@ -179,6 +181,61 @@ export default function App() {
     setPeriodIndex(0)
     setOpinionFilter('')
   }
+  // 3D 星图数据：每个研究问题一张专属星图（节点=年份，颜色=主导立场，大小=样本量）
+  // 必须放在所有早期 return 之前，保证 hooks 顺序稳定。
+  const galaxyData: GalaxyData | null = useMemo(() => {
+    const research = state?.researches.find((r) => r.id === selected)
+    if (!research) return null
+    const labels = Array.from(
+      new Set(
+        research.periods.flatMap((p) => p.opinions.map((o) => o.label)),
+      ),
+    )
+    const labelColor = Object.fromEntries(
+      labels.map((label, i) => [label, COLORS[i % COLORS.length]]),
+    )
+    return {
+      question: research.input.question,
+      totalSamples: research.periods.reduce(
+        (sum, p) => sum + p.evidence.length,
+        0,
+      ),
+      colors: labelColor,
+      periods: research.periods.map((p) => {
+        const counts = labels.map((label) =>
+          p.opinions
+            .filter((o) => o.label === label)
+            .reduce((sum, o) => sum + o.evidenceIds.length, 0),
+        )
+        const assigned = counts.reduce((a, b) => a + b, 0)
+        // “未归类”不作为主导立场展示
+        const named = labels
+          .map((label, i) => ({ label, count: counts[i] }))
+          .filter((x) => x.label !== '未归类' && x.count > 0)
+          .sort((a, b) => b.count - a.count)
+        const top = named[0]
+        return {
+          label: p.label,
+          sampleCount: p.evidence.length,
+          dominantLabel: top ? top.label : '观点聚类中',
+          dominantShare: top && assigned ? top.count / assigned : 0,
+          summary:
+            p.opinions
+              .filter((o) => o.label !== '未归类')
+              .slice()
+              .sort((a, b) => b.evidenceIds.length - a.evidenceIds.length)[0]
+              ?.summary?.slice(0, 44) ?? '',
+        }
+      }),
+    }
+  }, [state, selected])
+  const jumpToPeriod = useCallback((index: number) => {
+    setPeriodIndex(index)
+    setOpinionFilter('')
+    document
+      .getElementById('period-detail')
+      ?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }, [])
   if (!api)
     return (
       <div className="boot">
@@ -240,22 +297,30 @@ export default function App() {
         ),
       ]
     : []
-  const chartData = research?.periods.map((p, i) => ({
-    name: p.label,
-    index: i,
-    ...Object.fromEntries(
-      labels.map((label, j) => [
-        `v${j}`,
-        p.status === 'done' && p.evidence.length
-          ? (p.opinions
-              .filter((o) => o.label === label)
-              .reduce((sum, o) => sum + o.evidenceIds.length, 0) /
-              p.evidence.length) *
-            100
-          : null,
-      ]),
-    ),
-  }))
+  const chartData = research?.periods.map((p, i) => {
+    // 防御性归一化：以各立场实际分到的证据数为分母重标定，
+    // 保证每根柱子各段加总恒为 100，避免出现 >100% 的越界刻度。
+    const counts = labels.map((label) =>
+      p.status === 'done'
+        ? p.opinions
+            .filter((o) => o.label === label)
+            .reduce((sum, o) => sum + o.evidenceIds.length, 0)
+        : 0,
+    )
+    const assigned = counts.reduce((a, b) => a + b, 0)
+    return {
+      name: p.label,
+      index: i,
+      ...Object.fromEntries(
+        labels.map((label, j) => [
+          `v${j}`,
+          p.status === 'done' && p.evidence.length && assigned
+            ? (counts[j] / assigned) * 100
+            : null,
+        ]),
+      ),
+    }
+  })
   const period = research?.periods[periodIndex]
   return (
     <div className="app-shell">
@@ -959,9 +1024,42 @@ export default function App() {
               <section className="panel chart-panel">
                 <div className="panel-heading">
                   <span>观点随时间的变化</span>
-                  <span className="subtle">样本占比 / %</span>
+                  <span className="chart-heading-right">
+                    {galaxyData && (
+                      <span className="detail-visual-switch">
+                        <button
+                          className={detailView === '2d' ? 'active' : ''}
+                          type="button"
+                          onClick={() => setDetailView('2d')}
+                        >
+                          2D
+                        </button>
+                        <button
+                          className={detailView === '3d' ? 'active' : ''}
+                          type="button"
+                          onClick={() => setDetailView('3d')}
+                        >
+                          <Box size={10} /> 3D 星图
+                        </button>
+                      </span>
+                    )}
+                    {detailView === '2d' && <span className="subtle">样本占比 / %</span>}
+                  </span>
                 </div>
-                {labels.length ? (
+                {detailView === '3d' && galaxyData ? (
+                  <div className="chart-galaxy-wrap">
+                    <Suspense fallback={<span className="galaxy-loading">正在点亮时间宇宙…</span>}>
+                      <TimeGalaxy3D data={galaxyData} onSelectPeriod={jumpToPeriod} onUnavailable={handle3DUnavailable} />
+                    </Suspense>
+                    <button
+                      className="galaxy-immersive-btn"
+                      type="button"
+                      onClick={() => setImmersive3D(true)}
+                    >
+                      <Maximize2 size={13} /> 进入沉浸式星图
+                    </button>
+                  </div>
+                ) : labels.length ? (
                   <>
                     <div className="chart">
                       <ResponsiveContainer width="100%" height="100%">
@@ -1009,7 +1107,9 @@ export default function App() {
                             tick={{ fontSize: 11, fill: '#858397' }}
                           />
                           <YAxis
+                            type="number"
                             domain={[0, 100]}
+                            ticks={[0, 25, 50, 75, 100]}
                             tickFormatter={(v) => `${v}%`}
                             axisLine={false}
                             tickLine={false}
@@ -1082,7 +1182,7 @@ export default function App() {
                 ))}
               </div>
               {period && (
-                <div className="detail-grid">
+                <div className="detail-grid" id="period-detail">
                   <section className="panel period-analysis">
                     <IconLabel>{period.label} / 阶段观点</IconLabel>
                     <h2>这一时期，人们怎么看？</h2>
@@ -1198,17 +1298,29 @@ export default function App() {
               </Dialog.Close>
             </div>
             <div className="galaxy-stage-copy">
-              <span>OPINION EVOLUTION / 2020—2026</span>
-              <h2>穿越观点的<br /><em>时间引力场</em></h2>
-              <p>每个发光节点代表一次叙事转折。拖拽改变观察角度，滚轮穿越时间尺度。</p>
+              {galaxyData ? (
+                <>
+                  <span>OPINION EVOLUTION / {galaxyData.periods[0]?.label}—{galaxyData.periods[galaxyData.periods.length - 1]?.label}</span>
+                  <h2>{galaxyData.question.length > 18 ? galaxyData.question.slice(0, 18) + '…' : galaxyData.question}</h2>
+                  <p>每个节点是一年的群体判断：颜色=主导立场，大小=样本量，点击可跳转到该年证据。</p>
+                </>
+              ) : (
+                <>
+                  <span>OPINION EVOLUTION / 2020—2026</span>
+                  <h2>穿越观点的<br /><em>时间引力场</em></h2>
+                  <p>每个发光节点代表一次叙事转折。拖拽改变观察角度，滚轮穿越时间尺度。</p>
+                </>
+              )}
             </div>
-            <div className="stage-metrics" aria-hidden="true">
-              <span><small>SIGNALS</small><strong>04</strong></span>
-              <span><small>TRAJECTORY</small><strong>6.2Y</strong></span>
-              <span><small>CONFIDENCE</small><strong>81%</strong></span>
-            </div>
+            {galaxyData && (
+              <div className="stage-metrics">
+                <span><small>SAMPLES</small><strong>{galaxyData.totalSamples}</strong></span>
+                <span><small>PERIODS</small><strong>{galaxyData.periods.length}</strong></span>
+                <span><small>SOURCES</small><strong>ZHIHU</strong></span>
+              </div>
+            )}
             <Suspense fallback={<span className="stage-loading">正在构建沉浸宇宙…</span>}>
-              <TimeGalaxy3D immersive onUnavailable={handle3DUnavailable} />
+              <TimeGalaxy3D immersive data={galaxyData} onSelectPeriod={(i) => { jumpToPeriod(i); setImmersive3D(false) }} onUnavailable={handle3DUnavailable} />
             </Suspense>
             <div className="stage-instructions">
               <span><MousePointer2 size={13} /> 拖拽旋转</span>
