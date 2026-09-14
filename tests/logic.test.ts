@@ -70,10 +70,12 @@ test('fabricated references and duplicate classifications are excluded', () => {
   )
 })
 
-test('global sources allow web links but never executable protocols or embedded credentials', () => {
-  assert.equal(sourceAllowed('https://example.com/article', 'global'), true)
-  assert.equal(sourceAllowed('http://example.com/article', 'global'), true)
-  assert.equal(sourceAllowed('https://example.com/article'), false)
-  for (const url of ['file:///C:/test', 'javascript:alert(1)', 'https://user:secret@example.com'])
+test('only official zhihu domains are admitted, in either search source', () => {
+  assert.equal(sourceAllowed('https://www.zhihu.com/question/1/answer/2', 'global'), true)
+  assert.equal(sourceAllowed('https://zhuanlan.zhihu.com/p/123', 'global'), true)
+  // 全网搜索召回的站外结果不进入样本
+  assert.equal(sourceAllowed('https://example.com/article', 'global'), false)
+  assert.equal(sourceAllowed('http://www.zhihu.com/question/1', 'global'), false)
+  for (const url of ['file:///C:/test', 'javascript:alert(1)', 'https://user:secret@zhihu.com'])
     assert.equal(sourceAllowed(url, 'global'), false)
 })
