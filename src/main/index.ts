@@ -201,6 +201,7 @@ function wire() {
 }
 function createWindow() {
   window = new BrowserWindow({
+    icon: join(app.getAppPath(), 'assets/icon.png'),
     width: 1360,
     height: 900,
     minWidth: 1024,

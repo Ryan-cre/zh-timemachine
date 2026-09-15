@@ -27,16 +27,20 @@
     },
     "files": [
       "out/**/*",
+      "assets/icon.png",
       "package.json"
     ],
     "win": {
+      "icon": "assets/icon.ico",
       "target": "portable"
     },
     "mac": {
+      "icon": "assets/icon.png",
       "target": "dmg",
       "category": "public.app-category.productivity"
     },
     "linux": {
+      "icon": "assets/icon.png",
       "target": "AppImage",
       "category": "Utility"
     }
