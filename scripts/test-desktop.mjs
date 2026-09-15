@@ -29,7 +29,7 @@ const server = createServer(async (req, res) => {
             {
               label: '期待夺冠',
               summary: '仍然看好选手的未来。',
-              evidenceIds: [prompt.includes('global:https://example.com/article') ? 'global:https://example.com/article' : 'Answer:fixture'],
+              evidenceIds: [prompt.includes('global:https://zhuanlan.zhihu.com/p/123456') ? 'global:https://zhuanlan.zhihu.com/p/123456' : 'Answer:fixture'],
             },
           ],
         }
@@ -78,6 +78,9 @@ try {
   const page = await desktop.firstWindow()
   const errors = []
   page.on('pageerror', (error) => errors.push(error.message))
+  await page.locator('.gate .time-galaxy.is-ready').waitFor()
+  await page.screenshot({ path: join(output, 'gate.png') })
+  await page.getByRole('button', { name: '点击此处开始探索' }).click()
   await page.getByText('开始一段研究', { exact: true }).waitFor()
   const threeDButton = page.getByRole('button', { name: '3D', exact: true })
   assert.equal(await threeDButton.getAttribute('aria-pressed'), 'true')
@@ -92,9 +95,12 @@ try {
   const galaxyDialog = page.getByRole('dialog', { name: '沉浸式观点时间宇宙' })
   await galaxyDialog.waitFor()
   await page.getByLabel('可拖拽旋转和滚轮缩放的动态观点时间宇宙').waitFor()
-  await galaxyDialog.getByRole('button', { name: '2022 讨论扩散', exact: true }).click()
-  await galaxyDialog.getByText('34%', { exact: true }).waitFor()
+  await galaxyDialog.getByText('示意', { exact: true }).waitFor()
   await page.screenshot({ path: join(output, 'immersive-3d.png') })
+  await galaxyDialog.getByRole('button', { name: '2022 讨论扩散', exact: true }).click()
+  await galaxyDialog.waitFor({ state: 'hidden' })
+  await page.getByRole('button', { name: /进入沉浸式时间宇宙/ }).click()
+  await galaxyDialog.waitFor()
   await page.keyboard.press('Escape')
   assert.equal(await page.getByRole('dialog').count(), 0)
   await page.getByLabel('可拖拽旋转和滚轮缩放的动态观点时间宇宙').waitFor()
@@ -112,7 +118,7 @@ try {
         globalThis.globalRequests.push(Object.fromEntries(url.searchParams))
         return Response.json({ Code: 0, Data: { HasMore: false, Items: [{
           ContentID: 'global-fixture', Title: '全网样本',
-          Summary: '期待未来夺冠。', Url: 'https://example.com/article',
+          Summary: '期待未来夺冠。', Url: 'https://zhuanlan.zhihu.com/p/123456',
           EditTime: 1800000000, VoteUpCount: 0, AuthorName: '测试作者',
         }] } })
       }
@@ -199,6 +205,8 @@ try {
   assert.equal(result.periods[0].opinions[0].label, '期待夺冠')
   await page.getByRole('button', { name: 'NiKo 能否夺冠', exact: true }).click()
   await page.getByText('观点随时间的变化', { exact: true }).waitFor()
+  // Keep the documentation screenshot clear of transient notifications.
+  await page.locator('.toast').waitFor({ state: 'hidden' })
   await page.screenshot({ path: join(output, 'research.png'), fullPage: true })
   await page.getByRole('button', { name: /2025/ }).click()
   assert.equal(
@@ -285,6 +293,7 @@ try {
   assert.equal(resumed.searches, 3)
   assert.deepEqual(await desktop.evaluate(() => globalThis.checkpointCalls),
     ['断点测试', 'NiKo Major', 'NiKo Major'])
+  await page.getByRole('button', { name: '模型与连接', exact: true }).click()
   await page.getByLabel('搜索来源', { exact: true }).selectOption('global')
   await page.getByText('搜索来源已保存，用于新研究', { exact: true }).waitFor()
   assert.equal((await page.evaluate(() => window.desktop.state())).settings.searchSource, 'global')
@@ -299,7 +308,7 @@ try {
   const globalResult = await waitResearch(globalId)
   assert.equal(globalResult.status, 'done', globalResult.message)
   assert.equal(globalResult.input.searchSource, 'global')
-  assert.equal(globalResult.periods[0].evidence[0].url, 'https://example.com/article')
+  assert.equal(globalResult.periods[0].evidence[0].url, 'https://zhuanlan.zhihu.com/p/123456')
   assert.equal(globalResult.periods[0].opinions[0].label, '期待夺冠')
   assert.ok(globalResult.periods[0].warnings.some((warning) => warning.includes('模型辅助匹配')))
   const globalRequests = await desktop.evaluate(() => globalThis.globalRequests)
